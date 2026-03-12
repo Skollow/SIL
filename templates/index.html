@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<title>Article Search</title>
+
+<style>
+
+body{
+font-family:Arial;
+max-width:900px;
+margin:auto;
+padding:20px;
+}
+
+input, select{
+padding:8px;
+margin:5px;
+}
+
+.result{
+border-bottom:1px solid #ccc;
+padding:15px 0;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Article Search</h1>
+
+<input id="searchBox" placeholder="Search articles">
+
+<select id="authorFilter">
+<option value="">All Authors</option>
+</select>
+
+<select id="sourceFilter">
+<option value="">All Sources</option>
+</select>
+
+<div id="results"></div>
+
+
+<script>
+
+async function loadFilters(){
+
+    const res = await fetch("/filters")
+    const data = await res.json()
+
+    const authorFilter = document.getElementById("authorFilter")
+    const sourceFilter = document.getElementById("sourceFilter")
+
+    data.authors.forEach(a=>{
+        const option=document.createElement("option")
+        option.value=a
+        option.text=a
+        authorFilter.appendChild(option)
+    })
+
+    data.sources.forEach(s=>{
+        const option=document.createElement("option")
+        option.value=s
+        option.text=s
+        sourceFilter.appendChild(option)
+    })
+}
+
+
+async function search(){
+
+    const q=document.getElementById("searchBox").value
+    const author=document.getElementById("authorFilter").value
+    const source=document.getElementById("sourceFilter").value
+
+    const url=`/search?q=${q}&author=${author}&source=${source}`
+
+    const res=await fetch(url)
+    const data=await res.json()
+
+    const results=document.getElementById("results")
+
+    results.innerHTML=""
+
+    data.forEach(article=>{
+
+        const div=document.createElement("div")
+        div.className="result"
+
+        div.innerHTML=`
+        <h3><a href="${article.link}" target="_blank">${article.title}</a></h3>
+        <p>${article.author} | ${article.source}</p>
+        <p>${article.full_text}</p>
+        `
+
+        results.appendChild(div)
+
+    })
+
+}
+
+document.getElementById("searchBox").addEventListener("input", search)
+document.getElementById("authorFilter").addEventListener("change", search)
+document.getElementById("sourceFilter").addEventListener("change", search)
+
+loadFilters()
+
+</script>
+
+</body>
+
+</html>
