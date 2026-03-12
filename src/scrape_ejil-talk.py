@@ -6,8 +6,8 @@ from datetime import datetime
 import re
 from collections import Counter
 
-CATEGORY_URL = "https://lieber.westpoint.edu/articles-of-war/"
-FILE_NAME = "articles.json"
+CATEGORY_URL = "https://www.ejiltalk.org/category/armed-conflict/"
+FILE_NAME = "configs/articles.json"
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
@@ -27,16 +27,16 @@ def scrape_article(url):
     res = requests.get(url, headers=headers)
     soup = BeautifulSoup(res.text, "html.parser")
 
-    title_tag = soup.select_one("h1.entry-title")
+    title_tag = soup.select_one("h1.blog-info-title")
     title = title_tag.get_text(strip=True) if title_tag else ""
 
-    author_tag = soup.select_one("span.pp-author-boxes-name a")
+    author_tag = soup.select_one("address.author a")
     author = author_tag.get_text(strip=True) if author_tag else "Unknown"
 
-    date_tag = soup.select_one("span.published")
-    date = date_tag.get_text(strip=True) if title_tag else ""
-
-    content = soup.select_one(".et_pb_text_inner")
+    date_tag = soup.select_one("time.blog-info-date")
+    date = date_tag.get("datetime") if date_tag else ""
+    
+    content = soup.select_one(".pf-content")
 
 
     if content:
@@ -55,7 +55,7 @@ def scrape_article(url):
 res = requests.get(CATEGORY_URL, headers=headers)
 soup = BeautifulSoup(res.text, "html.parser")
 
-for a in soup.select("h3.entry-title a"):
+for a in soup.select("a.article-link"):
 
     link = a.get("href")
 
@@ -63,7 +63,7 @@ for a in soup.select("h3.entry-title a"):
         continue
 
     if link.startswith("/"):
-        link = "https://lieber.westpoint.edu" + link
+        link = "https://www.ejiltalk.org" + link
 
     if "/author/" in link:
         continue
@@ -78,7 +78,7 @@ for a in soup.select("h3.entry-title a"):
         title, author, date, article_text = scrape_article(link)
 
         articles.append({
-            "source": "Lieber Westpoint",
+            "source": "EJIL TALK",
             "title": title,
             "author": author,
             "date": date,
