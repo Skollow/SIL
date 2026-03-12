@@ -34,10 +34,19 @@ def scrape_article(url):
     author = author_tag.get_text(strip=True) if author_tag else "Unknown"
 
     date_tag = soup.select_one("div.post-date")
-    date = date_tag.get_text(strip=True) if title_tag else ""
+    date_text = date_tag.get_text(strip=True) if title_tag else ""
+    date_text = date_text.replace("Published on ", "")
+
+
+    try:
+        date_obj = datetime.strptime(date_text, "%B %d, %Y")
+    except:
+        date_obj = datetime.strptime(date_text, "%d %B %Y")
+
+    year = date_obj.year
+    month = date_obj.month
 
     content = soup.select_one(".post-primary")
-
 
     if content:
         paragraphs = content.find_all("p")
@@ -47,10 +56,10 @@ def scrape_article(url):
 
     print("TITLE:", title)
     print("AUTHOR:", author)
-    print("DATE:", date)
+    print("DATE:", date_text)
     print("TEXT LENGTH:", len(text))
 
-    return title, author, date, text
+    return title, author, date_text, year, month, text
 
 res = requests.get(CATEGORY_URL, headers=headers)
 soup = BeautifulSoup(res.text, "html.parser")
@@ -75,13 +84,15 @@ for a in soup.select("div.content-wrap a"):
 
     try:
 
-        title, author, date, article_text = scrape_article(link)
+        title, author, date_text, year, month, article_text = scrape_article(link)
 
         articles.append({
             "source": "Just Security",
             "title": title,
             "author": author,
-            "date": date,
+            "date": date_text,
+            "year": year,
+            "month": month,
             "link": link,
             "scraped_at": datetime.utcnow().isoformat(),
             "full_text": article_text,
