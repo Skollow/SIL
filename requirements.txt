@@ -1,4 +1,5 @@
 Flask
+Flask_login
 gunicorn
 whoosh
 beautifulsoup4
