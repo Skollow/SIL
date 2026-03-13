@@ -34,7 +34,7 @@ def scrape_article(url):
     author = author_tag.get_text(strip=True) if author_tag else "Unknown"
 
     date_tag = soup.select_one("div.post-date")
-    date_text = date_tag.get_text(strip=True) if title_tag else ""
+    date_text = date_tag.get_text(strip=True) if date_tag else ""
     date_text = date_text.replace("Published on ", "")
 
 
@@ -54,57 +54,62 @@ def scrape_article(url):
     else:
         text = ""
 
-    print("TITLE:", title)
-    print("AUTHOR:", author)
-    print("DATE:", date_text)
-    print("TEXT LENGTH:", len(text))
-
-    return title, author, date_text, year, month, text
+    return {
+        "source": "Just Security",
+        "title": title,
+        "author": author,
+        "date": date_text,
+        "year": year,
+        "month": month,
+        "link": url,
+        "scraped_at": datetime.utcnow().isoformat(),
+        "full_text": text
+    }
 
 res = requests.get(CATEGORY_URL, headers=headers)
 soup = BeautifulSoup(res.text, "html.parser")
 
-for a in soup.select("div.content-wrap a"):
+def run_scrape_just():
+    os.makedirs("configs", exist_ok=True)
 
-    link = a.get("href")
+    if os.path.exists(FILE_NAME):
+        with open(FILE_NAME, "r", encoding="utf-8") as f:
+            articles = json.load(f)
+    else:
+        articles = []
 
-    if not link:
-        continue
+    existing_links = {a["link"] for a in articles}
 
-    if link.startswith("/"):
-        link = "https://www.justsecurity.org" + link
+    res = requests.get(CATEGORY_URL, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
 
-    if "/author/" in link:
-        continue
+    for a in soup.select("div.content-wrap a"):
 
-    if link in existing_links:
-        continue
+        link = a.get("href")
 
-    print("SCRAPING:", link)
+        if not link:
+            continue
 
-    try:
+        if link.startswith("/"):
+            link = "https://www.justsecurity.org" + link
 
-        title, author, date_text, year, month, article_text = scrape_article(link)
+        if "/author/" in link:
+            continue
 
-        articles.append({
-            "source": "Just Security",
-            "title": title,
-            "author": author,
-            "date": date_text,
-            "year": year,
-            "month": month,
-            "link": link,
-            "scraped_at": datetime.utcnow().isoformat(),
-            "full_text": article_text,
-        })
+        if link in existing_links:
+            continue
 
-        existing_links.add(link)
+        print("Scraping:", link)
 
-    except Exception as e:
-        print("error:", link, e)
+        try:
+            article = scrape_article(link)
+            articles.append(article)
+            existing_links.add(link)
 
+        except Exception as e:
+            print("error:", link, e)
 
-with open(FILE_NAME, "w", encoding="utf-8") as f:
-    json.dump(articles, f, indent=2, ensure_ascii=False)
+    with open(FILE_NAME, "w", encoding="utf-8") as f:
+        json.dump(articles, f, indent=2, ensure_ascii=False)
 
-print("done. total articles:", len(articles))
+    return articles

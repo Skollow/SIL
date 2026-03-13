@@ -52,57 +52,60 @@ def scrape_article(url):
     else:
         text = ""
 
-    print("TITLE:", title)
-    print("AUTHOR:", author)
-    print("DATE:", date_text)
-    print("TEXT LENGTH:", len(text))
-
-    return title, author, date_text, year, month, text
+    return {
+        "source": "EJIL TALK",
+        "title": title,
+        "author": author,
+        "date": date_text,
+        "year": year,
+        "month": month,
+        "link": url,
+        "scraped_at": datetime.utcnow().isoformat(),
+        "full_text": text
+    }
 
 res = requests.get(CATEGORY_URL, headers=headers)
 soup = BeautifulSoup(res.text, "html.parser")
 
-for a in soup.select("a.article-link"):
+def run_scrape_ejil():
 
-    link = a.get("href")
+    os.makedirs("configs", exist_ok=True)
 
-    if not link:
-        continue
+    if os.path.exists(FILE_NAME):
+        with open(FILE_NAME, "r", encoding="utf-8") as f:
+            articles = json.load(f)
+    else:
+        articles = []
 
-    if link.startswith("/"):
-        link = "https://www.ejiltalk.org" + link
+    existing_links = {a["link"] for a in articles}
 
-    if "/author/" in link:
-        continue
+    res = requests.get(CATEGORY_URL, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
 
-    if link in existing_links:
-        continue
+    for a in soup.select("a.article-link"):
 
-    print("SCRAPING:", link)
+        link = a.get("href")
 
-    try:
+        if not link:
+            continue
 
-        title, author, date_text, year, month, article_text = scrape_article(link)
-        
-        articles.append({
-            "source": "EJIL TALK",
-            "title": title,
-            "author": author,
-            "date": date_text,
-            "year": year,
-            "month": month,
-            "link": link,
-            "scraped_at": datetime.utcnow().isoformat(),
-            "full_text": article_text,
-        })
+        if link.startswith("/"):
+            link = "https://www.ejiltalk.org" + link
 
-        existing_links.add(link)
+        if link in existing_links:
+            continue
 
-    except Exception as e:
-        print("error:", link, e)
+        print("Scraping:", link)
 
+        try:
+            article = scrape_article(link)
+            articles.append(article)
+            existing_links.add(link)
 
-with open(FILE_NAME, "w", encoding="utf-8") as f:
-    json.dump(articles, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print("error:", link, e)
 
-print("done. total articles:", len(articles))
+    with open(FILE_NAME, "w", encoding="utf-8") as f:
+        json.dump(articles, f, indent=2, ensure_ascii=False)
+
+    return articles

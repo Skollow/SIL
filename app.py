@@ -1,26 +1,80 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from whoosh.index import open_dir
+from whoosh.index import create_in, open_dir
 from whoosh.qparser import MultifieldParser
+from whoosh.fields import Schema, TEXT, NUMERIC, ID
 from werkzeug.security import check_password_hash
+from src.scrape_ejil_talk import run_scrape_ejil
+from src.scrape_just_security import run_scrape_just
+from src.scrape_lieber_westpoint import run_scrape_lieber
+
 import json
 import os
 
-
-ix = open_dir("indexdir")
-
 app = Flask(__name__)
 app.secret_key = "secretkey123"
+
+# ------------------------
+# 1 RUN SCRAPER
+# ------------------------
+
+def load_articles():
+    articles = []
+    for scraper in [run_scrape_ejil, run_scrape_just, run_scrape_lieber]:
+        articles += scraper()
+    return articles
+
+articles = load_articles()
+
+# ------------------------
+# 2 BUILD SEARCH INDEX
+# ------------------------
+
+schema = Schema(
+    title=TEXT(stored=True),
+    author=TEXT(stored=True),
+    source=TEXT(stored=True),
+    year=NUMERIC(stored=True),
+    month=NUMERIC(stored=True),
+    content=TEXT(stored=True),
+    link=ID(stored=True)
+)
+
+if not os.path.exists("indexdir"):
+    os.mkdir("indexdir")
+
+    ix = create_in("indexdir", schema)
+
+    writer = ix.writer()
+
+    for article in articles:
+
+        writer.add_document(
+            title=article["title"],
+            author=article["author"],
+            source=article["source"],
+            year=article["year"],
+            month=article["month"],
+            content=article["full_text"],
+            link=article["link"]
+        )
+
+    writer.commit()
+
+else:
+    ix = open_dir("indexdir")
+
+# ------------------------
+# ROUTES
+# ------------------------
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-with open("configs/articles.json", "r", encoding="utf-8") as f:
-    articles = json.load(f)
-
 with open("configs/users.json","r",encoding="utf-8") as f:
     users=json.load(f)
+
 
 class User(UserMixin):
     def __init__(self,id,username,password):
@@ -129,5 +183,4 @@ def filters():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True) #need to add 0.0.0.0 for free access
