@@ -1,0 +1,6 @@
+Flask
+gunicorn
+whoosh
+beautifulsoup4
+requests
+werkzeug
