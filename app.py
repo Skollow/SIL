@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from whoosh.index import open_dir
 from whoosh.qparser import MultifieldParser
+from werkzeug.security import check_password_hash
 import json
 
 ix = open_dir("indexdir")
@@ -41,8 +42,7 @@ def login():
         password=request.form["password"]
 
         for u in users:
-            if u["username"]==username and u["password"]==password:
-
+            if u["username"] == username and check_password_hash(u["password"], password):  
                 user=User(u["id"],u["username"],u["password"])
                 login_user(user)
 
