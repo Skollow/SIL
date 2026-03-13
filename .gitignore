@@ -1,3 +1,4 @@
-configs/*.json
+configs/articles.json
+configs/users.json
 /indexdir/
 src/__paycache__
