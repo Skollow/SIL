@@ -4,6 +4,8 @@ from whoosh.index import open_dir
 from whoosh.qparser import MultifieldParser
 from werkzeug.security import check_password_hash
 import json
+import os
+
 
 ix = open_dir("indexdir")
 
@@ -127,4 +129,5 @@ def filters():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
