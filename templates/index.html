@@ -8,20 +8,24 @@
 <style>
 
 body{
-font-family:Arial;
-max-width:900px;
-margin:auto;
-padding:20px;
+    font-family: Arial;
+    max-width: 900px;
+    margin: auto;
+    padding: 20px;
 }
 
 input, select{
-padding:8px;
-margin:5px;
+    padding: 8px;
+    margin: 5px;
 }
 
 .result{
-border-bottom:1px solid #ccc;
-padding:15px 0;
+    border-bottom: 1px solid #ccc;
+    padding: 15px 0;
+}
+
+.snippet{
+    color:#444;
 }
 
 </style>
@@ -33,6 +37,8 @@ padding:15px 0;
 <h1>Article Search</h1>
 
 <input id="searchBox" placeholder="Search articles">
+
+<br>
 
 <select id="authorFilter">
 <option value="">All Authors</option>
@@ -51,7 +57,6 @@ padding:15px 0;
 </select>
 
 <div id="results"></div>
-
 
 <script>
 
@@ -97,21 +102,20 @@ async function loadFilters(){
 
 async function search(){
 
-    const q=document.getElementById("searchBox").value
-    const author=document.getElementById("authorFilter").value
-    const year=document.getElementById("yearFilter").value
-    const month=document.getElementById("monthFilter").value
-    const source=document.getElementById("sourceFilter").value
+    const q = document.getElementById("searchBox").value
+    const author = document.getElementById("authorFilter").value
+    const year = document.getElementById("yearFilter").value
+    const month = document.getElementById("monthFilter").value
+    const source = document.getElementById("sourceFilter").value
 
     const url =
-        `/search?q=${q}&author=${author}&year=${year}&month=${month}&source=${source}`
+    `/search?q=${encodeURIComponent(q)}&author=${author}&year=${year}&month=${month}&source=${source}`
 
-    const res=await fetch(url)
-    const data=await res.json()
+    const res = await fetch(url)
+    const data = await res.json()
 
-    const results=document.getElementById("results")
-
-    results.innerHTML=""
+    const results = document.getElementById("results")
+    results.innerHTML = ""
 
     data.forEach(article=>{
 
@@ -119,9 +123,17 @@ async function search(){
         div.className="result"
 
         div.innerHTML=`
-        <h3><a href="${article.link}" target="_blank">${article.title}</a></h3>
-        <p>${article.author} | ${article.year} | ${article.month} | ${article.source}</p>
-        <p>${article.full_text}</p>
+        <h3>
+            <a href="${article.link}" target="_blank">
+            ${article.title}
+            </a>
+        </h3>
+
+        <p>
+        ${article.author} | ${article.year} | ${article.month} | ${article.source}
+        </p>
+
+        <p class="snippet">${article.snippet}</p>
         `
 
         results.appendChild(div)
