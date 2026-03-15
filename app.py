@@ -60,7 +60,11 @@ schema = Schema(
     link=ID(stored=True)
 )
 
-if not os.path.exists("indexdir"):
+def build_index(articles):
+    """בונה את האינדקס מאפס."""
+    import shutil
+    if os.path.exists("indexdir"):
+        shutil.rmtree("indexdir")
     os.mkdir("indexdir")
     ix = create_in("indexdir", schema)
     writer = ix.writer()
@@ -75,8 +79,28 @@ if not os.path.exists("indexdir"):
             link=article.get("link", "")
         )
     writer.commit()
+    return ix
+
+# בדוק אם האינדקס קיים ומעודכן לפי מספר המאמרים
+ARTICLES_FILE = "configs/articles.json"
+
+def index_is_stale():
+    """מחזיר True אם האינדקס לא קיים או שה-JSON עודכן אחריו."""
+    if not os.path.exists("indexdir"):
+        return True
+    if not os.path.exists(ARTICLES_FILE):
+        return False
+    index_mtime = os.path.getmtime("indexdir")
+    json_mtime   = os.path.getmtime(ARTICLES_FILE)
+    return json_mtime > index_mtime
+
+if index_is_stale():
+    print("Building search index...")
+    ix = build_index(articles)
+    print(f"Index built with {len(articles)} articles.")
 else:
     ix = open_dir("indexdir")
+    print(f"Index loaded ({len(articles)} articles in JSON).")
 
 # Build a quick lookup: link → article (for tag retrieval after Whoosh search)
 link_to_article = {a["link"]: a for a in articles}
