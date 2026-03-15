@@ -2,29 +2,53 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
+import time
 from datetime import datetime
-import re
-from collections import Counter
 
-CATEGORY_URL = "https://www.justsecurity.org/recent-articles/"
+BASE_URL = "https://www.justsecurity.org"
+CATEGORY_URL = BASE_URL + "/recent-articles/page/{}/"
 FILE_NAME = "configs/articles.json"
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Referer": "https://www.google.com/",
 }
 
-if os.path.exists(FILE_NAME):
-    with open(FILE_NAME, "r", encoding="utf-8") as f:
-        articles = json.load(f)
-else:
-    articles = []
 
-existing_links = {a["link"] for a in articles}
+def load_existing_articles():
+    os.makedirs("configs", exist_ok=True)
+    if os.path.exists(FILE_NAME):
+        with open(FILE_NAME, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def save_articles(articles):
+    with open(FILE_NAME, "w", encoding="utf-8") as f:
+        json.dump(articles, f, indent=2, ensure_ascii=False)
+
+
+def parse_date(date_text):
+    cleaned = date_text.replace("Published on ", "").strip()
+    for fmt in ["%B %d, %Y", "%d %B %Y", "%Y-%m-%d"]:
+        try:
+            return datetime.strptime(cleaned, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def scrape_article(url):
-
-    res = requests.get(url, headers=headers)
+    res = requests.get(url, headers=HEADERS, timeout=15)
+    res.raise_for_status()
     soup = BeautifulSoup(res.text, "html.parser")
 
     title_tag = soup.select_one("div.post-title h1")
@@ -35,19 +59,12 @@ def scrape_article(url):
 
     date_tag = soup.select_one("div.post-date")
     date_text = date_tag.get_text(strip=True) if date_tag else ""
-    date_text = date_text.replace("Published on ", "")
+    date_obj = parse_date(date_text)
 
-
-    try:
-        date_obj = datetime.strptime(date_text, "%B %d, %Y")
-    except:
-        date_obj = datetime.strptime(date_text, "%d %B %Y")
-
-    year = date_obj.year
-    month = date_obj.month
+    year = date_obj.year if date_obj else 0
+    month = date_obj.month if date_obj else 0
 
     content = soup.select_one(".post-primary")
-
     if content:
         paragraphs = content.find_all("p")
         text = "\n".join(p.get_text(strip=True) for p in paragraphs)
@@ -66,50 +83,109 @@ def scrape_article(url):
         "full_text": text
     }
 
-res = requests.get(CATEGORY_URL, headers=headers)
-soup = BeautifulSoup(res.text, "html.parser")
+
+MAX_PAGES = 5
+
 
 def run_scrape_just():
-    os.makedirs("configs", exist_ok=True)
-
-    if os.path.exists(FILE_NAME):
-        with open(FILE_NAME, "r", encoding="utf-8") as f:
-            articles = json.load(f)
-    else:
-        articles = []
-
+    articles = load_existing_articles()
     existing_links = {a["link"] for a in articles}
 
-    res = requests.get(CATEGORY_URL, headers=headers)
-    soup = BeautifulSoup(res.text, "html.parser")
+    page = 1
 
-    for a in soup.select("div.content-wrap a"):
-
-        link = a.get("href")
-
-        if not link:
-            continue
-
-        if link.startswith("/"):
-            link = "https://www.justsecurity.org" + link
-
-        if "/author/" in link:
-            continue
-
-        if link in existing_links:
-            continue
-
-        print("Scraping:", link)
+    while page <= MAX_PAGES:
+        # עמוד 1 = URL בסיסי, עמוד 2+ = /page/N/
+        if page == 1:
+            url = BASE_URL + "/recent-articles/"
+        else:
+            url = CATEGORY_URL.format(page)
+        print(f"[Just Security] Scraping page {page}: {url}")
 
         try:
-            article = scrape_article(link)
-            articles.append(article)
-            existing_links.add(link)
+            res = requests.get(url, headers=HEADERS, timeout=15)
+        except requests.RequestException as e:
+            print(f"[Just Security] Request error on page {page}: {e}")
+            break
 
-        except Exception as e:
-            print("error:", link, e)
+        if res.status_code == 404:
+            print(f"[Just Security] No more pages after page {page - 1}")
+            break
 
-    with open(FILE_NAME, "w", encoding="utf-8") as f:
-        json.dump(articles, f, indent=2, ensure_ascii=False)
+        if res.status_code != 200:
+            print(f"[Just Security] Unexpected status {res.status_code}, stopping")
+            break
 
-    return articles
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        # נסה כמה selectors - המבנה של Just Security עשוי להשתנות
+        raw_links = []
+        for selector in [
+            "div.article-block a"
+            "h2.entry-title a",
+            "h3.entry-title a",
+            "article a[rel='bookmark']",
+            "div.content-wrap a",
+            "a.entry-title-link",
+        ]:
+            raw_links = soup.select(selector)
+            if raw_links:
+                print(f"  ✓ Found links with selector: {selector}")
+                break
+
+        article_links = []
+        for a in raw_links:
+            href = a.get("href", "")
+            if not href:
+                continue
+            if href.startswith("/"):
+                href = BASE_URL + href
+            if "/author/" in href or "/category/" in href or "/tag/" in href:
+                continue
+            if "/page/" in href:
+                continue
+            if not href.startswith(BASE_URL):
+                continue
+            article_links.append(href)
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_links = []
+        for l in article_links:
+            if l not in seen:
+                seen.add(l)
+                unique_links.append(l)
+
+        if not unique_links:
+            print("[Just Security] No article links found, stopping")
+            print("  Debug - page HTML snippet:")
+            print(soup.find("body").get_text()[:300] if soup.find("body") else "no body")
+            break
+
+        new_count = 0
+        for link in unique_links:
+            if link in existing_links:
+                continue
+
+            print(f"  → Scraping: {link}")
+            try:
+                article = scrape_article(link)
+                articles.append(article)
+                existing_links.add(link)
+                new_count += 1
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"  ✗ Error: {link} — {e}")
+
+        print(f"  ✓ Added {new_count} new articles from page {page}")
+
+        # Check for next page
+        next_page = soup.select_one("a.next.page-numbers")
+        if not next_page:
+            print("[Just Security] No next page found, done")
+            break
+
+        page += 1
+        time.sleep(1)
+
+    save_articles(articles)
+    return [a for a in articles if a["source"] == "Just Security"]

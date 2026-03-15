@@ -1,7 +1,8 @@
-Flask
-Flask_login
-gunicorn
-whoosh
-beautifulsoup4
-requests
-werkzeug
+flask>=3.0.0
+flask-limiter>=3.5.0
+whoosh>=2.7.4
+markupsafe>=2.1.3
+werkzeug>=3.0.0
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+python-dotenv>=1.0.0

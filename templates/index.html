@@ -1,157 +1,705 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Article Search</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IHL Search</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+3:wght@300;400;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* ── Variables ── */
+    :root {
+      --bg:      #0f1117;
+      --surface: #181c27;
+      --border:  #2a2f3d;
+      --accent:  #c9a84c;
+      --accent2: #4c7fc9;
+      --text:    #e8e2d5;
+      --muted:   #8a8898;
+      --danger:  #c94c4c;
+      --radius:  6px;
+    }
 
-<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-body{
-    font-family: Arial;
-    max-width: 900px;
-    margin: auto;
-    padding: 20px;
-}
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Source Sans 3', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+    }
 
-input, select{
-    padding: 8px;
-    margin: 5px;
-}
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 28px 40px 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+    header span {
+      color: var(--muted);
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
 
-.result{
-    border-bottom: 1px solid #ccc;
-    padding: 15px 0;
-}
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 270px 1fr;
+      min-height: calc(100vh - 80px);
+    }
 
-.snippet{
-    color:#444;
-}
+    /* ── Sidebar ── */
+    aside {
+      border-right: 1px solid var(--border);
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      overflow-y: auto;
+    }
 
-</style>
+    .filter-section-title {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
 
+    /* ── Select dropdowns ── */
+    select {
+      width: 100%;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 32px 9px 12px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238a8898' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      transition: border-color 0.2s;
+    }
+    select:focus { outline: none; border-color: var(--accent); }
+    select option { background: var(--surface); }
+
+    /* ── Tag chips (sidebar) ── */
+    .tag-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .tag-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      user-select: none;
+    }
+    .tag-chip:hover { border-color: var(--accent); }
+    .tag-chip.active {
+      border-color: var(--accent);
+      background: rgba(201, 168, 76, 0.1);
+    }
+    .tag-chip.unavailable {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    /* Custom checkbox inside tag-chip */
+    .tag-chip input[type="checkbox"] {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg);
+      flex-shrink: 0;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .tag-chip input[type="checkbox"]:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .tag-chip input[type="checkbox"]:checked::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 1px;
+      width: 5px;
+      height: 8px;
+      border: 2px solid #0f1117;
+      border-top: none;
+      border-left: none;
+      transform: rotate(40deg);
+    }
+
+    .tag-label { font-size: 0.82rem; flex: 1; }
+
+    /* Colour dots */
+    .tag-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-Targeting  { background: #e05c5c; }
+    .dot-Cyber      { background: #4c9fe0; }
+    .dot-IHL        { background: #c9a84c; }
+    .dot-ICJ        { background: #7c5ce0; }
+    .dot-Occupation { background: #5ce0a0; }
+    .dot-Detention  { background: #e08c4c; }
+    .dot-Weapon     { background: #c04ce0; }
+    .dot-General    { background: #8a8898; }
+
+    /* ── Reset button ── */
+    .reset-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      letter-spacing: 0.04em;
+    }
+    .reset-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+    .filter-note {
+      font-size: 0.74rem;
+      color: var(--muted);
+      line-height: 1.55;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Main ── */
+    main {
+      padding: 28px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Search bar ── */
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .search-bar input {
+      flex: 1;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 11px 16px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 300;
+      transition: border-color 0.2s;
+    }
+    .search-bar input::placeholder { color: var(--muted); }
+    .search-bar input:focus { outline: none; border-color: var(--accent); }
+
+    .search-btn {
+      background: var(--accent);
+      color: #0f1117;
+      border: none;
+      border-radius: var(--radius);
+      padding: 11px 26px;
+      font-family: 'Playfair Display', serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .search-btn:hover { background: #d9b85c; }
+    .search-btn:active { transform: scale(0.97); }
+    .search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      min-height: 20px;
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner.active { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    #results { display: flex; flex-direction: column; }
+
+    .result-item {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+      animation: fadeIn 0.22s ease forwards;
+    }
+    .result-item:last-child { border-bottom: none; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 6px;
+    }
+
+    .result-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.05rem;
+      line-height: 1.4;
+    }
+    .result-title a {
+      color: var(--text);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .result-title a:hover { color: var(--accent); }
+
+    /* Source badges */
+    .source-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .source-ejil    { background: rgba(201,168,76,0.15); color: var(--accent);  border: 1px solid rgba(201,168,76,0.3); }
+    .source-just    { background: rgba(76,127,201,0.15); color: var(--accent2); border: 1px solid rgba(76,127,201,0.3); }
+    .source-lieber  { background: rgba(201,76,76,0.15);  color: #c97a4c;        border: 1px solid rgba(201,120,76,0.3); }
+    .source-default { background: rgba(138,136,152,0.15);color: var(--muted);   border: 1px solid var(--border); }
+
+    .result-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Tag pills on result cards */
+    .result-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 8px;
+    }
+    .result-tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid;
+    }
+    .rtag-Targeting  { color: #e05c5c; border-color: rgba(224,92,92,0.35);   background: rgba(224,92,92,0.08); }
+    .rtag-Cyber      { color: #4c9fe0; border-color: rgba(76,159,224,0.35);  background: rgba(76,159,224,0.08); }
+    .rtag-IHL        { color: #c9a84c; border-color: rgba(201,168,76,0.35);  background: rgba(201,168,76,0.08); }
+    .rtag-ICJ        { color: #a07ce0; border-color: rgba(160,124,224,0.35); background: rgba(160,124,224,0.08); }
+    .rtag-Occupation { color: #5ce0a0; border-color: rgba(92,224,160,0.35);  background: rgba(92,224,160,0.08); }
+    .rtag-Detention  { color: #e08c4c; border-color: rgba(224,140,76,0.35);  background: rgba(224,140,76,0.08); }
+    .rtag-Weapon     { color: #c04ce0; border-color: rgba(192,76,224,0.35);  background: rgba(192,76,224,0.08); }
+    .rtag-General    { color: var(--muted); border-color: var(--border);      background: transparent; }
+
+    .result-snippet {
+      font-size: 0.875rem;
+      color: #b0aab8;
+      line-height: 1.65;
+      margin-top: 8px;
+    }
+    .result-snippet b,
+    .result-snippet em {
+      color: var(--accent);
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ── Responsive ── */
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--border); }
+      header { padding: 20px; }
+      main { padding: 20px; }
+    }
+  </style>
 </head>
 
 <body>
 
-<h1>Article Search</h1>
+  <header>
+    <h1>IHL Search</h1>
+    <span>International Humanitarian Law</span>
+  </header>
 
-<input id="searchBox" placeholder="Search articles">
+  <div class="layout">
 
-<br>
+    <!-- ── Sidebar ── -->
+    <aside>
 
-<select id="authorFilter">
-<option value="">All Authors</option>
-</select>
+      <div>
+        <div class="filter-section-title">Topic / Category</div>
+        <div class="tag-grid" id="tagFilters"></div>
+      </div>
 
-<select id="yearFilter">
-<option value="">All Years</option>
-</select>
+      <div>
+        <div class="filter-section-title">Source</div>
+        <select id="sourceFilter">
+          <option value="">All Sources</option>
+        </select>
+      </div>
 
-<select id="monthFilter">
-<option value="">All Months</option>
-</select>
+      <div>
+        <div class="filter-section-title">Author</div>
+        <select id="authorFilter">
+          <option value="">All Authors</option>
+        </select>
+      </div>
 
-<select id="sourceFilter">
-<option value="">All Sources</option>
-</select>
+      <div>
+        <div class="filter-section-title">Year</div>
+        <select id="yearFilter">
+          <option value="">All Years</option>
+        </select>
+      </div>
 
-<div id="results"></div>
+      <div>
+        <div class="filter-section-title">Month</div>
+        <select id="monthFilter">
+          <option value="">All Months</option>
+        </select>
+      </div>
 
-<script>
+      <button class="reset-btn" onclick="resetAll()">&#8635; Reset All Filters</button>
 
-async function loadFilters(){
+      <p class="filter-note">
+        Filters update dynamically. Selecting a source or topic narrows the
+        other options to matching articles only.
+      </p>
 
-    const res = await fetch("/filters")
-    const data = await res.json()
+    </aside>
 
-    const authorFilter = document.getElementById("authorFilter")
-    const yearFilter = document.getElementById("yearFilter")
-    const monthFilter = document.getElementById("monthFilter")
-    const sourceFilter = document.getElementById("sourceFilter")
+    <!-- ── Main ── -->
+    <main>
 
-    data.authors.forEach(a=>{
-        const option=document.createElement("option")
-        option.value=a
-        option.text=a
-        authorFilter.appendChild(option)
-    })
+      <div class="search-bar">
+        <input
+          type="text"
+          id="searchBox"
+          placeholder="Search articles, topics, authors&hellip;"
+          autocomplete="off"
+        />
+        <button class="search-btn" id="searchBtn" onclick="runSearch()">Search</button>
+      </div>
 
-    data.years.forEach(y=>{
-        const option=document.createElement("option")
-        option.value=y
-        option.text=y
-        yearFilter.appendChild(option)
-    })
+      <div class="status-bar">
+        <div class="spinner" id="spinner"></div>
+        <span id="statusText">Select a topic or enter a search term to begin.</span>
+      </div>
 
-    data.months.forEach(m=>{
-        const option=document.createElement("option")
-        option.value=m
-        option.text=m
-        monthFilter.appendChild(option)
-    })
+      <div id="results"></div>
 
-    data.sources.forEach(s=>{
-        const option=document.createElement("option")
-        option.value=s
-        option.text=s
-        sourceFilter.appendChild(option)
-    })
-}
+    </main>
+  </div>
 
+  <script>
+    /* ── Constants ── */
+    const MONTH_NAMES = {
+      1: "January", 2: "February", 3: "March",    4: "April",
+      5: "May",     6: "June",     7: "July",      8: "August",
+      9: "September",10:"October",11: "November", 12: "December"
+    };
 
-async function search(){
+    /* ── State ── */
+    const activeTags = new Set();
 
-    const q = document.getElementById("searchBox").value
-    const author = document.getElementById("authorFilter").value
-    const year = document.getElementById("yearFilter").value
-    const month = document.getElementById("monthFilter").value
-    const source = document.getElementById("sourceFilter").value
+    /* ── Helpers ── */
+    function esc(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
-    const url =
-    `/search?q=${encodeURIComponent(q)}&author=${author}&year=${year}&month=${month}&source=${source}`
+    function sourceBadgeClass(source) {
+      const s = source.toLowerCase();
+      if (s.includes("ejil"))   return "source-ejil";
+      if (s.includes("just"))   return "source-just";
+      if (s.includes("lieber")) return "source-lieber";
+      return "source-default";
+    }
 
-    const res = await fetch(url)
-    const data = await res.json()
+    function dotClass(tag) {
+      if (tag.startsWith("Targeting")) return "Targeting";
+      if (tag.startsWith("Cyber"))     return "Cyber";
+      if (tag.startsWith("IHL"))       return "IHL";
+      if (tag.startsWith("ICJ"))       return "ICJ";
+      if (tag.startsWith("Occup"))     return "Occupation";
+      if (tag.startsWith("Deten"))     return "Detention";
+      if (tag.startsWith("Weapon"))    return "Weapon";
+      return "General";
+    }
 
-    const results = document.getElementById("results")
-    results.innerHTML = ""
+    function rtagClass(tag) {
+      return "rtag-" + dotClass(tag);
+    }
 
-    data.forEach(article=>{
+    function setLoading(on) {
+      document.getElementById("spinner").classList.toggle("active", on);
+      document.getElementById("searchBtn").disabled = on;
+    }
 
-        const div=document.createElement("div")
-        div.className="result"
+    function setStatus(msg) {
+      document.getElementById("statusText").textContent = msg;
+    }
 
-        div.innerHTML=`
-        <h3>
-            <a href="${article.link}" target="_blank">
-            ${article.title}
-            </a>
-        </h3>
+    /* ── Populate a select, restoring the previous value if still valid ── */
+    function populateSelect(id, items, preserve) {
+      var sel   = document.getElementById(id);
+      var first = sel.options[0];
+      sel.innerHTML = "";
+      sel.appendChild(first);
+      items.forEach(function(item) {
+        var opt = document.createElement("option");
+        if (typeof item === "object") {
+          opt.value = item.value;
+          opt.text  = item.label;
+        } else {
+          opt.value = item;
+          opt.text  = String(item);
+        }
+        sel.appendChild(opt);
+      });
+      if (preserve) {
+        var match = Array.prototype.some.call(
+          sel.options, function(o) { return String(o.value) === String(preserve); }
+        );
+        if (match) sel.value = preserve;
+      }
+    }
 
-        <p>
-        ${article.author} | ${article.year} | ${article.month} | ${article.source}
-        </p>
+    /* ── Render tag checkboxes in sidebar ── */
+    function renderTagFilters(tags) {
+      var container = document.getElementById("tagFilters");
+      container.innerHTML = tags.map(function(t) {
+        var dc          = dotClass(t.name);
+        var isActive    = activeTags.has(t.name);
+        var unavailable = !t.available && !isActive;
+        return (
+          '<label class="tag-chip' +
+            (isActive    ? " active"      : "") +
+            (unavailable ? " unavailable" : "") +
+          '" data-tag="' + esc(t.name) + '">' +
+            '<input type="checkbox" value="' + esc(t.name) + '"' +
+              (isActive ? " checked" : "") +
+              ' onchange="toggleTag(\'' + esc(t.name) + '\', this.checked)">' +
+            '<span class="tag-dot dot-' + dc + '"></span>' +
+            '<span class="tag-label">' + esc(t.name) + '</span>' +
+          '</label>'
+        );
+      }).join("");
+    }
 
-        <p class="snippet">${article.snippet}</p>
-        `
+    function toggleTag(name, checked) {
+      if (checked) activeTags.add(name);
+      else         activeTags.delete(name);
+      refreshFilters().then(runSearch);
+    }
 
-        results.appendChild(div)
+    /* ── Fetch filters from server ── */
+    function refreshFilters() {
+      var params = new URLSearchParams();
+      var source = document.getElementById("sourceFilter").value;
+      var author = document.getElementById("authorFilter").value;
+      var year   = document.getElementById("yearFilter").value;
+      var month  = document.getElementById("monthFilter").value;
+      if (source) params.set("source", source);
+      if (author) params.set("author", author);
+      if (year)   params.set("year",   year);
+      if (month)  params.set("month",  month);
+      activeTags.forEach(function(t) { params.append("tags", t); });
 
-    })
+      return fetch("/filters?" + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var curSource = document.getElementById("sourceFilter").value;
+          var curAuthor = document.getElementById("authorFilter").value;
+          var curYear   = document.getElementById("yearFilter").value;
+          var curMonth  = document.getElementById("monthFilter").value;
 
-}
+          populateSelect("sourceFilter", data.sources, curSource);
+          populateSelect("authorFilter", data.authors, curAuthor);
+          populateSelect("yearFilter",   data.years,   curYear);
+          populateSelect(
+            "monthFilter",
+            data.months.map(function(m) {
+              return { value: m, label: MONTH_NAMES[m] || String(m) };
+            }),
+            curMonth
+          );
+          renderTagFilters(data.tags);
+        });
+    }
 
-document.getElementById("searchBox").addEventListener("input", search)
-document.getElementById("authorFilter").addEventListener("change", search)
-document.getElementById("yearFilter").addEventListener("change", search)
-document.getElementById("monthFilter").addEventListener("change", search)
-document.getElementById("sourceFilter").addEventListener("change", search)
+    /* ── Run search ── */
+    function runSearch() {
+      var q      = document.getElementById("searchBox").value.trim();
+      var author = document.getElementById("authorFilter").value;
+      var year   = document.getElementById("yearFilter").value;
+      var month  = document.getElementById("monthFilter").value;
+      var source = document.getElementById("sourceFilter").value;
 
-loadFilters()
+      if (!q && !author && !year && !month && !source && activeTags.size === 0) {
+        document.getElementById("results").innerHTML = "";
+        setStatus("Select a topic or enter a search term to begin.");
+        return;
+      }
 
-</script>
+      setLoading(true);
+
+      var params = new URLSearchParams({ q: q, author: author, year: year, month: month, source: source });
+      activeTags.forEach(function(t) { params.append("tags", t); });
+
+      fetch("/search?" + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          renderResults(data);
+          setStatus(
+            data.length > 0
+              ? data.length + " result" + (data.length !== 1 ? "s" : "") + " found."
+              : "No results found for this query."
+          );
+        })
+        .catch(function(err) {
+          setStatus("Search error. Please try again.");
+          console.error(err);
+        })
+        .finally(function() {
+          setLoading(false);
+        });
+    }
+
+    /* ── Render result cards ── */
+    function renderResults(articles) {
+      var container = document.getElementById("results");
+
+      if (articles.length === 0) {
+        container.innerHTML =
+          '<div class="empty-state">' +
+            '<div class="icon">&#x2696;</div>' +
+            '<p>No articles matched your query.</p>' +
+          '</div>';
+        return;
+      }
+
+      container.innerHTML = articles.map(function(a, i) {
+        var tagPills = (a.tags || []).map(function(t) {
+          return '<span class="result-tag ' + rtagClass(t) + '">' + esc(t) + '</span>';
+        }).join("");
+
+        return (
+          '<div class="result-item" style="animation-delay:' + (i * 0.025) + 's">' +
+            '<div class="result-header">' +
+              '<div class="result-title">' +
+                '<a href="' + esc(a.link) + '" target="_blank" rel="noopener noreferrer">' +
+                  esc(a.title) +
+                '</a>' +
+              '</div>' +
+              '<span class="source-badge ' + sourceBadgeClass(a.source) + '">' + esc(a.source) + '</span>' +
+            '</div>' +
+            '<div class="result-meta">' +
+              '<span>&#9998; ' + esc(a.author) + '</span>' +
+              '<span>&#128197; ' + (MONTH_NAMES[a.month] || a.month) + ' ' + a.year + '</span>' +
+            '</div>' +
+            (tagPills ? '<div class="result-tags">' + tagPills + '</div>' : '') +
+            (a.snippet ? '<div class="result-snippet">' + a.snippet + '</div>' : '') +
+          '</div>'
+        );
+      }).join("");
+    }
+
+    /* ── Reset ── */
+    function resetAll() {
+      activeTags.clear();
+      ["sourceFilter", "authorFilter", "yearFilter", "monthFilter"].forEach(function(id) {
+        document.getElementById(id).value = "";
+      });
+      document.getElementById("searchBox").value = "";
+      document.getElementById("results").innerHTML = "";
+      setStatus("Filters reset. Select a topic or enter a search term to begin.");
+      refreshFilters();
+    }
+
+    /* ── Event listeners ── */
+    document.getElementById("searchBox").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") runSearch();
+    });
+
+    ["sourceFilter", "authorFilter", "yearFilter", "monthFilter"].forEach(function(id) {
+      document.getElementById(id).addEventListener("change", function() {
+        refreshFilters().then(runSearch);
+      });
+    });
+
+    /* ── Init ── */
+    refreshFilters();
+  </script>
 
 </body>
-
 </html>
