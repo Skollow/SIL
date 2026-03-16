@@ -1,8 +1,3 @@
-# categories.py
-# Keyword-based automatic tagging for IHL articles.
-# Each category has a list of keywords (lowercase).
-# An article is tagged if ANY keyword appears in its title or full_text.
-
 CATEGORIES = {
     "Targeting": [
         "targeting", "military objective", "distinction", "proportionality",
@@ -56,20 +51,7 @@ CATEGORIES = {
 ALL_CATEGORY_NAMES = list(CATEGORIES.keys())
 
 
-def assign_categories(article: dict) -> list:
-    """
-    Returns a list of matching category names for an article,
-    based on keywords found in title + full_text (case-insensitive).
-    Falls back to ['General'] if nothing matches.
-    """
-    text = (
-        article.get("title", "") + " " + article.get("full_text", "")
-    ).lower()
-
-    matched = [
-        category
-        for category, keywords in CATEGORIES.items()
-        if any(kw in text for kw in keywords)
-    ]
-
+def assign_categories(article):
+    text = (article.get("title", "") + " " + article.get("full_text", "")).lower()
+    matched = [cat for cat, keywords in CATEGORIES.items() if any(kw in text for kw in keywords)]
     return matched if matched else ["General"]

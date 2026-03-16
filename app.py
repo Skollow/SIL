@@ -3,14 +3,14 @@ from whoosh.index import create_in, open_dir
 from whoosh.qparser import MultifieldParser
 from whoosh.fields import Schema, TEXT, NUMERIC, ID
 from whoosh import query as whoosh_query
-from src.scrape_ejil_talk import run_scrape_ejil
-from src.scrape_just_security import run_scrape_just
-from src.scrape_lieber_westpoint import run_scrape_lieber
+from whoosh.sorting import FieldFacet
 from markupsafe import escape
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from src.categories import assign_categories, ALL_CATEGORY_NAMES
+from src.database import init_db, get_all_articles, get_filter_options
 import os
+import shutil
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,37 +18,49 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(32))
 
-# Rate limiting
 limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["300/day", "60/minute"]
 )
 
-# ------------------------
-# 1. LOAD ARTICLES
-# ------------------------
+# ── Scrapers (imported lazily to avoid circular issues) ──────────────────────
+def run_all_scrapers():
+    from src.scrape_ejil_talk        import run_scrape_ejil
+    from src.scrape_just_security    import run_scrape_just
+    from src.scrape_lieber_westpoint import run_scrape_lieber
+    from src.scrape_opinio_juris     import run_scrape_opinio
 
-def load_articles():
-    articles = []
-    for scraper in [run_scrape_ejil, run_scrape_just, run_scrape_lieber]:
+    total = 0
+    for scraper in [run_scrape_ejil, run_scrape_just, run_scrape_lieber, run_scrape_opinio]:
         try:
-            articles += scraper()
+            total += scraper()
         except Exception as e:
-            print(f"Scraper error: {e}")
+            print(f"Scraper error ({scraper.__name__}): {e}")
+    return total
 
-    # Assign tags to every article (in-memory, no file change needed)
-    for article in articles:
-        if "tags" not in article:
-            article["tags"] = assign_categories(article)
+# ── 1. INIT DATABASE & LOAD ARTICLES ────────────────────────────────────────
+init_db()
+run_all_scrapers()
 
-    return articles
+articles = get_all_articles()
+print(f"DEBUG: get_all_articles() returned {len(articles)} articles.")
 
-articles = load_articles()
+# Assign tags in-memory for any article missing them
+for a in articles:
+    if not a.get("tags"):
+        a["tags"] = assign_categories(a)
 
-# ------------------------
-# 2. BUILD SEARCH INDEX
-# ------------------------
+if not articles:
+    print("WARNING: No articles loaded from database! Check configs/articles.db path.")
+else:
+    sources = {}
+    for a in articles:
+        sources[a.get("source","?")] = sources.get(a.get("source","?"), 0) + 1
+    print(f"DEBUG: Articles by source: {sources}")
+
+# ── 2. BUILD / REFRESH SEARCH INDEX ─────────────────────────────────────────
+DB_PATH = "configs/articles.db"
 
 schema = Schema(
     title=TEXT(stored=True),
@@ -60,15 +72,14 @@ schema = Schema(
     link=ID(stored=True)
 )
 
-def build_index(articles):
-    """בונה את האינדקס מאפס."""
-    import shutil
+
+def build_index(article_list):
     if os.path.exists("indexdir"):
         shutil.rmtree("indexdir")
     os.mkdir("indexdir")
     ix = create_in("indexdir", schema)
     writer = ix.writer()
-    for article in articles:
+    for article in article_list:
         writer.add_document(
             title=article.get("title", ""),
             author=article.get("author", ""),
@@ -81,53 +92,44 @@ def build_index(articles):
     writer.commit()
     return ix
 
-# בדוק אם האינדקס קיים ומעודכן לפי מספר המאמרים
-ARTICLES_FILE = "configs/articles.json"
 
 def index_is_stale():
-    """מחזיר True אם האינדקס לא קיים או שה-JSON עודכן אחריו."""
     if not os.path.exists("indexdir"):
         return True
-    if not os.path.exists(ARTICLES_FILE):
+    if not os.path.exists(DB_PATH):
         return False
-    index_mtime = os.path.getmtime("indexdir")
-    json_mtime   = os.path.getmtime(ARTICLES_FILE)
-    return json_mtime > index_mtime
+    return os.path.getmtime(DB_PATH) > os.path.getmtime("indexdir")
+
 
 if index_is_stale():
-    print("Building search index...")
+    print(f"DEBUG: Building search index with {len(articles)} articles...")
     ix = build_index(articles)
-    print(f"Index built with {len(articles)} articles.")
+    print(f"DEBUG: Index built successfully.")
 else:
     ix = open_dir("indexdir")
-    print(f"Index loaded ({len(articles)} articles in JSON).")
+    with ix.searcher() as s:
+        print(f"DEBUG: Index loaded from disk — {s.doc_count()} documents.")
 
-# Build a quick lookup: link → article (for tag retrieval after Whoosh search)
+# Fast lookup: link → article dict (for tags + first-sentence fallback)
 link_to_article = {a["link"]: a for a in articles}
 
-# ------------------------
-# 3. HELPERS
-# ------------------------
+# ── 3. HELPERS ───────────────────────────────────────────────────────────────
 
-def article_matches_filters(article, source, author, year, month, tags):
-    """Check all active filters against a plain article dict."""
-    if source and article.get("source") != source:
-        return False
-    if author and article.get("author") != author:
-        return False
-    if year and str(article.get("year", "")) != year:
-        return False
-    if month and str(article.get("month", "")) != month:
-        return False
-    if tags:
-        article_tags = article.get("tags", [])
-        if not any(t in article_tags for t in tags):
-            return False
-    return True
+def first_sentences(text: str, n: int = 2) -> str:
+    """Return the first n sentences of text as a fallback snippet."""
+    if not text:
+        return ""
+    sentences = []
+    for part in text.replace("\n", " ").split(". "):
+        part = part.strip()
+        if part:
+            sentences.append(part)
+        if len(sentences) >= n:
+            break
+    return ". ".join(sentences) + ("." if sentences else "")
 
-# ------------------------
-# 4. ROUTES
-# ------------------------
+
+# ── 4. ROUTES ────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -142,100 +144,110 @@ def search():
     year      = request.args.get("year", "").strip()
     month     = request.args.get("month", "").strip()
     source    = request.args.get("source", "").strip()
-    tags      = request.args.getlist("tags")   # e.g. ?tags=Cyber&tags=IHL
-
-    # If nothing is provided, return empty
-    if not raw_query and not author and not year and not month and not source and not tags:
-        return jsonify([])
+    tags      = request.args.getlist("tags")
+    sort_by   = request.args.get("sort", "relevance")   # relevance | newest | oldest
+    page      = max(1, int(request.args.get("page", 1)))
+    per_page  = 20
 
     results_list = []
 
     with ix.searcher() as searcher:
+        # Build Whoosh query
         if raw_query:
             try:
                 parser = MultifieldParser(["title", "content"], schema=ix.schema)
-                safe_query = raw_query.replace("*", "").replace("?", "").replace("~", "")
-                q = parser.parse(safe_query)
+                safe_q = raw_query.replace("*", "").replace("?", "").replace("~", "")
+                q = parser.parse(safe_q)
             except Exception:
                 q = whoosh_query.Term("content", raw_query)
         else:
             q = whoosh_query.Every()
 
-        results = searcher.search(q, limit=200)
+        # Sorting
+        if sort_by == "newest":
+            sortedby = [FieldFacet("year", reverse=True), FieldFacet("month", reverse=True)]
+        elif sort_by == "oldest":
+            sortedby = [FieldFacet("year"), FieldFacet("month")]
+        else:
+            sortedby = None   # default: relevance
 
+        results = searcher.search(q, limit=None, sortedby=sortedby)
+
+        # Apply metadata filters
+        filtered = []
         for r in results:
             article = link_to_article.get(r["link"], {})
-
-            if not article_matches_filters(article, source, author, year, month, tags):
+            if source and article.get("source") != source:
+                continue
+            if author and article.get("author") != author:
+                continue
+            if year and str(article.get("year", "")) != year:
+                continue
+            if month and str(article.get("month", "")) != month:
+                continue
+            if tags and not any(t in article.get("tags", []) for t in tags):
                 continue
 
+            # Snippet: Whoosh highlight or first sentences
             snippet = r.highlights("content") if raw_query else ""
+            if not snippet:
+                snippet = first_sentences(article.get("full_text", ""), n=2)
 
-            results_list.append({
+            filtered.append({
                 "title":   str(escape(r["title"])),
                 "author":  str(escape(r["author"])),
                 "year":    r["year"],
                 "month":   r["month"],
+                "day":     article.get("day", 0),
                 "source":  str(escape(r["source"])),
                 "link":    str(escape(r["link"])),
                 "snippet": snippet,
-                "tags":    article.get("tags", [])
+                "tags":    article.get("tags", []),
             })
 
-    return jsonify(results_list)
+        total = len(filtered)
+        start = (page - 1) * per_page
+        results_list = filtered[start: start + per_page]
+
+    return jsonify({
+        "results":    results_list,
+        "total":      total,
+        "page":       page,
+        "per_page":   per_page,
+        "total_pages": max(1, -(-total // per_page)),   # ceil division
+    })
 
 
 @app.route("/filters")
 @limiter.limit("30/minute")
 def filters():
-    """
-    Returns filter options consistent with the current selection.
-    Each filter is computed excluding itself, so all its own options stay visible.
-    """
     selected_source = request.args.get("source", "").strip()
     selected_author = request.args.get("author", "").strip()
-    selected_year   = request.args.get("year", "").strip()
-    selected_month  = request.args.get("month", "").strip()
+    selected_year   = request.args.get("year",   "").strip()
+    selected_month  = request.args.get("month",  "").strip()
     selected_tags   = request.args.getlist("tags")
 
-    def base(exclude=None):
-        """All articles filtered by every active filter EXCEPT the excluded one."""
-        result = articles
-        if exclude != "source" and selected_source:
-            result = [a for a in result if a.get("source") == selected_source]
-        if exclude != "author" and selected_author:
-            result = [a for a in result if a.get("author") == selected_author]
-        if exclude != "year" and selected_year:
-            result = [a for a in result if str(a.get("year", "")) == selected_year]
-        if exclude != "month" and selected_month:
-            result = [a for a in result if str(a.get("month", "")) == selected_month]
-        if exclude != "tags" and selected_tags:
-            result = [a for a in result
-                      if any(t in a.get("tags", []) for t in selected_tags)]
-        return result
-
-    sources = sorted(set(a["source"] for a in base(exclude="source")))
-    authors = sorted(set(a["author"] for a in base(exclude="author")))
-    years   = sorted(set(a["year"]   for a in base(exclude="year")))
-    months  = sorted(set(a["month"]  for a in base(exclude="month")))
-
-    # Tags: always show all defined categories; mark which have results
-    available_tags = set(
-        tag
-        for a in base(exclude="tags")
-        for tag in a.get("tags", [])
+    opts = get_filter_options(
+        selected_source, selected_author,
+        selected_year, selected_month, selected_tags
     )
+
+    tag_counts = opts["tag_counts"]
     all_tags = [
-        {"name": cat, "available": cat in available_tags}
+        {
+            "name":      cat,
+            "available": cat in tag_counts,
+            "count":     tag_counts.get(cat, 0),
+        }
         for cat in ALL_CATEGORY_NAMES
     ]
 
     return jsonify({
-        "sources": sources,
-        "authors": authors,
-        "years":   years,
-        "months":  months,
-        "tags":    all_tags
+        "sources": opts["sources"],
+        "authors": opts["authors"],
+        "years":   opts["years"],
+        "months":  opts["months"],
+        "tags":    all_tags,
     })
 
 

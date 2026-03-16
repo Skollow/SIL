@@ -1,13 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
-import json
-import os
 import time
 from datetime import datetime
+from src.database import init_db, insert_article, article_exists
+from src.categories import assign_categories
 
-BASE_URL = "https://www.justsecurity.org"
+BASE_URL     = "https://www.justsecurity.org"
 CATEGORY_URL = BASE_URL + "/recent-articles/page/{}/"
-FILE_NAME = "configs/articles.json"
+MAX_PAGES    = 5
 
 HEADERS = {
     "User-Agent": (
@@ -21,19 +21,6 @@ HEADERS = {
     "Upgrade-Insecure-Requests": "1",
     "Referer": "https://www.google.com/",
 }
-
-
-def load_existing_articles():
-    os.makedirs("configs", exist_ok=True)
-    if os.path.exists(FILE_NAME):
-        with open(FILE_NAME, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
-
-
-def save_articles(articles):
-    with open(FILE_NAME, "w", encoding="utf-8") as f:
-        json.dump(articles, f, indent=2, ensure_ascii=False)
 
 
 def parse_date(date_text):
@@ -52,140 +39,101 @@ def scrape_article(url):
     soup = BeautifulSoup(res.text, "html.parser")
 
     title_tag = soup.select_one("div.post-title h1")
-    title = title_tag.get_text(strip=True) if title_tag else ""
+    title     = title_tag.get_text(strip=True) if title_tag else ""
 
     author_tag = soup.select_one("div.post-authors a")
-    author = author_tag.get_text(strip=True) if author_tag else "Unknown"
+    author     = author_tag.get_text(strip=True) if author_tag else "Unknown"
 
-    date_tag = soup.select_one("div.post-date")
+    date_tag  = soup.select_one("div.post-date")
     date_text = date_tag.get_text(strip=True) if date_tag else ""
-    date_obj = parse_date(date_text)
-
-    year = date_obj.year if date_obj else 0
-    month = date_obj.month if date_obj else 0
+    date_obj  = parse_date(date_text)
+    year      = date_obj.year  if date_obj else 0
+    month     = date_obj.month if date_obj else 0
 
     content = soup.select_one(".post-primary")
-    if content:
-        paragraphs = content.find_all("p")
-        text = "\n".join(p.get_text(strip=True) for p in paragraphs)
-    else:
-        text = ""
+    text    = "\n".join(p.get_text(strip=True) for p in content.find_all("p")) if content else ""
 
-    return {
-        "source": "Just Security",
-        "title": title,
-        "author": author,
-        "date": date_text,
-        "year": year,
-        "month": month,
-        "link": url,
+    article = {
+        "source":     "Just Security",
+        "title":      title,
+        "author":     author,
+        "date":       date_text,
+        "year":       year,
+        "month":      month,
+        "link":       url,
         "scraped_at": datetime.utcnow().isoformat(),
-        "full_text": text
+        "full_text":  text,
     }
+    article["tags"] = assign_categories(article)
+    return article
 
 
-MAX_PAGES = 5
+# WordPress REST API endpoint — יותר אמין מ-HTML scraping
+API_URL = BASE_URL + "/wp-json/wp/v2/posts"
+PER_PAGE = 20
 
 
 def run_scrape_just():
-    articles = load_existing_articles()
-    existing_links = {a["link"] for a in articles}
+    init_db()
+    new_total = 0
 
-    page = 1
-
-    while page <= MAX_PAGES:
-        # עמוד 1 = URL בסיסי, עמוד 2+ = /page/N/
-        if page == 1:
-            url = BASE_URL + "/recent-articles/"
-        else:
-            url = CATEGORY_URL.format(page)
-        print(f"[Just Security] Scraping page {page}: {url}")
+    for page in range(1, MAX_PAGES + 1):
+        print(f"[Just Security] Fetching page {page} via REST API...")
 
         try:
-            res = requests.get(url, headers=HEADERS, timeout=15)
+            res = requests.get(
+                API_URL,
+                params={"per_page": PER_PAGE, "page": page, "orderby": "date", "order": "desc"},
+                headers=HEADERS,
+                timeout=15
+            )
         except requests.RequestException as e:
-            print(f"[Just Security] Request error on page {page}: {e}")
+            print(f"[Just Security] Request error: {e}")
             break
 
-        if res.status_code == 404:
-            print(f"[Just Security] No more pages after page {page - 1}")
+        if res.status_code == 400 or res.status_code == 404:
+            print("[Just Security] No more pages.")
             break
-
         if res.status_code != 200:
-            print(f"[Just Security] Unexpected status {res.status_code}, stopping")
+            print(f"[Just Security] Status {res.status_code}, stopping.")
             break
 
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        # נסה כמה selectors - המבנה של Just Security עשוי להשתנות
-        raw_links = []
-        for selector in [
-            "div.article-block a"
-            "h2.entry-title a",
-            "h3.entry-title a",
-            "article a[rel='bookmark']",
-            "div.content-wrap a",
-            "a.entry-title-link",
-        ]:
-            raw_links = soup.select(selector)
-            if raw_links:
-                print(f"  ✓ Found links with selector: {selector}")
-                break
-
-        article_links = []
-        for a in raw_links:
-            href = a.get("href", "")
-            if not href:
-                continue
-            if href.startswith("/"):
-                href = BASE_URL + href
-            if "/author/" in href or "/category/" in href or "/tag/" in href:
-                continue
-            if "/page/" in href:
-                continue
-            if not href.startswith(BASE_URL):
-                continue
-            article_links.append(href)
-
-        # Deduplicate while preserving order
-        seen = set()
-        unique_links = []
-        for l in article_links:
-            if l not in seen:
-                seen.add(l)
-                unique_links.append(l)
-
-        if not unique_links:
-            print("[Just Security] No article links found, stopping")
-            print("  Debug - page HTML snippet:")
-            print(soup.find("body").get_text()[:300] if soup.find("body") else "no body")
+        try:
+            posts = res.json()
+        except Exception as e:
+            print(f"[Just Security] JSON parse error: {e}")
             break
+
+        if not posts:
+            print("[Just Security] Empty response, done.")
+            break
+
+        # בדוק כמה עמודים יש בסך הכל
+        total_pages = int(res.headers.get("X-WP-TotalPages", 1))
+        print(f"  Total pages available: {total_pages}")
 
         new_count = 0
-        for link in unique_links:
-            if link in existing_links:
+        for post in posts:
+            link = post.get("link", "")
+            if not link or article_exists(link):
                 continue
 
-            print(f"  → Scraping: {link}")
+            print(f"  → {link}")
             try:
                 article = scrape_article(link)
-                articles.append(article)
-                existing_links.add(link)
+                insert_article(article)
                 new_count += 1
+                new_total += 1
                 time.sleep(0.5)
             except Exception as e:
-                print(f"  ✗ Error: {link} — {e}")
+                print(f"  ✗ {link} — {e}")
 
         print(f"  ✓ Added {new_count} new articles from page {page}")
 
-        # Check for next page
-        next_page = soup.select_one("a.next.page-numbers")
-        if not next_page:
-            print("[Just Security] No next page found, done")
+        if page >= total_pages:
+            print("[Just Security] Reached last page.")
             break
 
-        page += 1
         time.sleep(1)
 
-    save_articles(articles)
-    return [a for a in articles if a["source"] == "Just Security"]
+    return new_total
