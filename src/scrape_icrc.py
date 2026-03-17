@@ -40,6 +40,7 @@ def scrape_article(url):
     soup = BeautifulSoup(res.text, "html.parser")
 
     title_tag = (
+        soup.select_one("h1.single-title") or
         soup.select_one("h1.entry-title") or
         soup.select_one("h1.post-title") or
         soup.select_one("h1")
@@ -47,6 +48,7 @@ def scrape_article(url):
     title = title_tag.get_text(strip=True) if title_tag else ""
 
     author_tag = (
+        soup.select_one(".authors") or
         soup.select_one(".author-name") or
         soup.select_one(".byline a") or
         soup.select_one("a[rel='author']") or
