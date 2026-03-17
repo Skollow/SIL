@@ -30,9 +30,20 @@ def run_all_scrapers():
     from src.scrape_just_security    import run_scrape_just
     from src.scrape_lieber_westpoint import run_scrape_lieber
     from src.scrape_opinio_juris     import run_scrape_opinio
+    from src.scrape_lawfare          import run_scrape_lawfare
+    from src.scrape_jurist           import run_scrape_jurist
+    from src.scrape_icrc             import run_scrape_icrc
 
     total = 0
-    for scraper in [run_scrape_ejil, run_scrape_just, run_scrape_lieber, run_scrape_opinio]:
+    for scraper in [
+        run_scrape_ejil,
+        run_scrape_just,
+        run_scrape_lieber,
+        run_scrape_opinio,
+        run_scrape_lawfare,
+        run_scrape_jurist,
+        run_scrape_icrc,
+    ]:
         try:
             total += scraper()
         except Exception as e:
@@ -198,7 +209,6 @@ def search():
                 "author":  str(escape(r["author"])),
                 "year":    r["year"],
                 "month":   r["month"],
-                "day":     article.get("day", 0),
                 "source":  str(escape(r["source"])),
                 "link":    str(escape(r["link"])),
                 "snippet": snippet,

@@ -7,7 +7,7 @@ from src.database import init_db, insert_article, article_exists
 from src.categories import assign_categories
 
 BASE_URL     = "https://www.ejiltalk.org"
-CATEGORY_URL = BASE_URL + "/category/armed-conflict/page/{}/"
+CATEGORY_URL = BASE_URL + "/category/armed-conflict/?pagenum={}"
 MAX_PAGES    = 5
 
 HEADERS = {

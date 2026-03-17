@@ -83,6 +83,9 @@
     .source-lieber  { background: rgba(201,76,76,0.15);  color: #c97a4c;        border: 1px solid rgba(201,120,76,0.3); }
     .source-opinio  { background: rgba(92,224,160,0.15); color: #5ce0a0;        border: 1px solid rgba(92,224,160,0.3); }
     .source-default { background: rgba(138,136,152,0.15);color: var(--muted);   border: 1px solid var(--border); }
+    .source-lawfare { background: rgba(224,92,160,0.15); color: #e05ca0;        border: 1px solid rgba(224,92,160,0.3); }
+    .source-jurist  { background: rgba(92,200,224,0.15); color: #5cc8e0;        border: 1px solid rgba(92,200,224,0.3); }
+    .source-icrc    { background: rgba(224,50,50,0.15);  color: #e03232;        border: 1px solid rgba(224,50,50,0.3); }
 
     .result-meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .result-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
@@ -191,7 +194,10 @@
     if (s.indexOf("ejil")   >= 0) return "source-ejil";
     if (s.indexOf("just")   >= 0) return "source-just";
     if (s.indexOf("lieber") >= 0) return "source-lieber";
-    if (s.indexOf("opinio") >= 0) return "source-opinio";
+    if (s.indexOf("opinio")   >= 0) return "source-opinio";
+    if (s.indexOf("lawfare")  >= 0) return "source-lawfare";
+    if (s.indexOf("jurist")   >= 0) return "source-jurist";
+    if (s.indexOf("icrc")     >= 0) return "source-icrc";
     return "source-default";
   }
 
@@ -349,7 +355,7 @@
       html += '<div class="result-title"><a href="' + esc(a.link) + '" target="_blank" rel="noopener noreferrer">' + esc(a.title) + '</a></div>';
       html += '<span class="source-badge ' + sourceBadgeClass(a.source) + '">' + esc(a.source) + '</span>';
       html += '</div>';
-      html += '<div class="result-meta"><span>&#9998; ' + esc(a.author) + '</span><span>&#128197; ' + (a.day > 0 ? a.day + ' ' : '') + (MONTH_NAMES[a.month] || a.month) + ' ' + a.year + '</span></div>';
+      html += '<div class="result-meta"><span>&#9998; ' + esc(a.author) + '</span><span>&#128197; ' + (MONTH_NAMES[a.month] || a.month) + ' ' + a.year + '</span></div>';
       if (tagPills) html += '<div class="result-tags">' + tagPills + '</div>';
       if (a.snippet) html += '<div class="result-snippet">' + a.snippet + '</div>';
       html += '</div>';
