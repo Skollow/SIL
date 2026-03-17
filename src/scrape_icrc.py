@@ -8,7 +8,7 @@ from src.categories import assign_categories
 BASE_URL     = "https://blogs.icrc.org"
 PAGE_1_URL   = BASE_URL + "/law-and-policy/posts/"
 PAGED_URL    = BASE_URL + "/law-and-policy/posts/page/{}/"
-MAX_PAGES    = 5
+MAX_PAGES    = 10
 
 HEADERS = {
     "User-Agent": (
@@ -48,13 +48,13 @@ def scrape_article(url):
     title = title_tag.get_text(strip=True) if title_tag else ""
 
     author_tag = (
-        soup.select_one(".authors") or
+        soup.select_one(".authors .auth span") or
         soup.select_one(".author-name") or
         soup.select_one(".byline a") or
         soup.select_one("a[rel='author']") or
         soup.select_one(".post-author")
     )
-    author = author_tag.get_text(strip=True) if author_tag else "Unknown"
+    author = author_tag.contents[0].strip() if author_tag else "Unknown"
 
     date_tag = (
         soup.select_one("time[datetime]") or
@@ -81,7 +81,7 @@ def scrape_article(url):
     text = "\n".join(p.get_text(strip=True) for p in content.find_all("p")) if content else ""
 
     article = {
-        "source":     "ICRC Law & Policy",
+        "source":     "ICRC",
         "title":      title,
         "author":     author,
         "date":       date_text,

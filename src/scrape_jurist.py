@@ -8,7 +8,7 @@ from src.categories import assign_categories
 BASE_URL     = "https://www.jurist.org"
 CATEGORY_URL = BASE_URL + "/news/page/{}/"
 PAGE_1_URL   = BASE_URL + "/news/"
-MAX_PAGES    = 5
+MAX_PAGES    = 10
 
 HEADERS = {
     "User-Agent": (
@@ -55,7 +55,7 @@ def scrape_article(url):
         soup.select_one("a[rel='author']") or
         soup.select_one(".entry-author")
     )
-    author = author_tag.get_text(strip=True) if author_tag else "Unknown"
+    author = author_tag.get_text(strip=True).split("|")[0].strip() if author_tag else "Unknown"
 
     date_tag = (
         soup.select_one("time[datetime]") or

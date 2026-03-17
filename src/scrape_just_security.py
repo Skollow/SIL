@@ -7,7 +7,7 @@ from src.categories import assign_categories
 
 BASE_URL     = "https://www.justsecurity.org"
 CATEGORY_URL = BASE_URL + "/recent-articles/page/{}/"
-MAX_PAGES    = 5
+MAX_PAGES    = 10
 
 HEADERS = {
     "User-Agent": (

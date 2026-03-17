@@ -6,7 +6,7 @@ from src.database import init_db, insert_article, article_exists
 from src.categories import assign_categories
 
 BASE_URL  = "https://opiniojuris.org"
-MAX_PAGES = 5
+MAX_PAGES = 10
 
 # שתי קטגוריות לסריקה
 CATEGORIES = [

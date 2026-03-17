@@ -8,7 +8,7 @@ from src.categories import assign_categories
 
 BASE_URL     = "https://www.ejiltalk.org"
 CATEGORY_URL = BASE_URL + "/category/armed-conflict/?pagenum={}"
-MAX_PAGES    = 5
+MAX_PAGES    = 10
 
 HEADERS = {
     "User-Agent": (

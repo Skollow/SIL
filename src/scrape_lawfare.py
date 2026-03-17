@@ -11,7 +11,7 @@ from src.database import init_db, insert_article, article_exists
 from src.categories import assign_categories
 
 BASE_URL  = "https://www.lawfaremedia.org"
-MAX_PAGES = 5
+MAX_PAGES = 10
 
 CATEGORIES = [
     {
@@ -88,7 +88,8 @@ def scrape_article(url):
     title = title_tag.get_text(strip=True) if title_tag else ""
 
     author_tag = (
-        soup.select_one(".field--name-field-authors a") or
+
+        soup.select_one(".post-detail__authors") or
         soup.select_one(".author-name a") or
         soup.select_one("a[rel='author']") or
         soup.select_one(".byline a")
@@ -96,7 +97,7 @@ def scrape_article(url):
     author = author_tag.get_text(strip=True) if author_tag else "Unknown"
 
     date_tag = (
-        soup.select_one("time[datetime]") or
+        soup.select_one(".post-detail__date") or
         soup.select_one(".date-display-single") or
         soup.select_one(".field--name-post-date") or
         soup.select_one(".published-date")
@@ -113,7 +114,7 @@ def scrape_article(url):
     day       = date_obj.day   if date_obj else 0
 
     content = (
-        soup.select_one(".field--name-body") or
+        soup.select_one(".post-detail__content") or
         soup.select_one(".node__content") or
         soup.select_one("article .content") or
         soup.select_one(".entry-content")
@@ -160,6 +161,7 @@ def scrape_category(category: dict) -> int:
         soup      = BeautifulSoup(res.text, "html.parser")
         link_tags = []
         for selector in [
+            ".post__title a"
             "h3.post__link a",
             "h3.post__title a",
             "h3.node__title a",

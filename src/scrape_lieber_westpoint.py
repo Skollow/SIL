@@ -7,7 +7,7 @@ from src.categories import assign_categories
 
 BASE_URL     = "https://lieber.westpoint.edu"
 CATEGORY_URL = BASE_URL + "/articles-of-war/page/{}/"
-MAX_PAGES    = 5
+MAX_PAGES    = 10
 
 HEADERS = {
     "User-Agent": (
