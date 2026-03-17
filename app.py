@@ -52,7 +52,7 @@ def run_all_scrapers():
 
 # ── 1. INIT DATABASE & LOAD ARTICLES ────────────────────────────────────────
 init_db()
-run_all_scrapers()
+# run_all_scrapers() ## down to prevent new scrape upon site creation ##
 
 articles = get_all_articles()
 print(f"DEBUG: get_all_articles() returned {len(articles)} articles.")
