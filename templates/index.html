@@ -125,6 +125,7 @@
 <header>
   <h1>SIL</h1>
   <span>Search International Law</span>
+  <a href="/stats" style="margin-left:auto;color:var(--muted);font-size:0.85rem;letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;transition:color 0.2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">Stats</a>
 </header>
 
 <div class="layout">
@@ -162,12 +163,12 @@
     <div class="toolbar">
       <div class="status-bar">
         <div class="spinner" id="spinner"></div>
-        <span id="statusText">Select a topic or enter a search term to begin.</span>
+        <span id="statusText">Loading articles&hellip;</span>
       </div>
       <div class="sort-bar" id="sortBar" style="display:none">
         <span>Sort:</span>
-        <button class="sort-btn active" data-sort="relevance" onclick="setSort('relevance')">Relevance</button>
-        <button class="sort-btn" data-sort="newest"    onclick="setSort('newest')">Newest</button>
+        <button class="sort-btn" data-sort="relevance" onclick="setSort('relevance')">Relevance</button>
+        <button class="sort-btn active" data-sort="newest"    onclick="setSort('newest')">Newest</button>
         <button class="sort-btn" data-sort="oldest"    onclick="setSort('oldest')">Oldest</button>
       </div>
     </div>
@@ -180,7 +181,7 @@
 <script>
   var MONTH_NAMES = {1:"January",2:"February",3:"March",4:"April",5:"May",6:"June",7:"July",8:"August",9:"September",10:"October",11:"November",12:"December"};
   var activeTags  = new Set();
-  var currentSort = "relevance";
+  var currentSort = "newest";
   var currentPage = 1;
 
   function esc(s) {
@@ -304,16 +305,6 @@
     var year   = document.getElementById("yearFilter").value;
     var month  = document.getElementById("monthFilter").value;
     var source = document.getElementById("sourceFilter").value;
-    var hasFilter = q || author || year || month || source || activeTags.size > 0;
-
-    if (!hasFilter) {
-      document.getElementById("results").innerHTML = "";
-      document.getElementById("pagination").innerHTML = "";
-      document.getElementById("sortBar").style.display = "none";
-      setStatus("Select a topic or enter a search term to begin.");
-      return;
-    }
-
     setLoading(true);
     var params = new URLSearchParams({ q: q, author: author, year: year, month: month, source: source, sort: currentSort, page: currentPage });
     activeTags.forEach(function(t) { params.append("tags", t); });
@@ -355,7 +346,8 @@
       html += '<div class="result-title"><a href="' + esc(a.link) + '" target="_blank" rel="noopener noreferrer">' + esc(a.title) + '</a></div>';
       html += '<span class="source-badge ' + sourceBadgeClass(a.source) + '">' + esc(a.source) + '</span>';
       html += '</div>';
-      html += '<div class="result-meta"><span>&#9998; ' + esc(a.author) + '</span><span>&#128197; ' + (MONTH_NAMES[a.month] || a.month) + ' ' + a.year + '</span></div>';
+      var dateStr = (MONTH_NAMES[a.month] || a.month) + (a.day ? ' ' + a.day + ',' : '') + ' ' + a.year;
+      html += '<div class="result-meta"><span>&#9998; ' + esc(a.author) + '</span><span>&#128197; ' + dateStr + '</span></div>';
       if (tagPills) html += '<div class="result-tags">' + tagPills + '</div>';
       if (a.snippet) html += '<div class="result-snippet">' + a.snippet + '</div>';
       html += '</div>';
@@ -397,16 +389,13 @@
     var ids = ["sourceFilter","authorFilter","yearFilter","monthFilter"];
     for (var i = 0; i < ids.length; i++) document.getElementById(ids[i]).value = "";
     document.getElementById("searchBox").value = "";
-    document.getElementById("results").innerHTML = "";
-    document.getElementById("pagination").innerHTML = "";
-    document.getElementById("sortBar").style.display = "none";
-    currentSort = "relevance";
+    currentSort = "newest";
     var btns = document.querySelectorAll(".sort-btn");
     for (var j = 0; j < btns.length; j++) {
-      btns[j].classList.toggle("active", btns[j].getAttribute("data-sort") === "relevance");
+      btns[j].classList.toggle("active", btns[j].getAttribute("data-sort") === "newest");
     }
-    setStatus("Filters reset. Select a topic or enter a search term to begin.");
-    refreshFilters();
+    setStatus("Filters reset.");
+    refreshFilters().then(function() { doSearch(1); });
   }
 
   document.getElementById("searchBox").addEventListener("keydown", function(e) {
@@ -422,7 +411,7 @@
     })(filterIds[fi]);
   }
 
-  refreshFilters();
+  refreshFilters().then(function() { doSearch(1); });
 </script>
 </body>
 </html>

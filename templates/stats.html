@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIL — Statistics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #0f1117; --surface: #181c27; --border: #2a2f3d;
+      --accent:  #c9a84c; --accent2: #4c7fc9; --text:   #e8e2d5;
+      --muted:   #8a8898; --danger:  #c94c4c; --radius: 6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Source Sans 3', sans-serif; font-weight: 300; min-height: 100vh; }
+
+    header { border-bottom: 1px solid var(--border); padding: 28px 40px 24px; display: flex; align-items: baseline; gap: 16px; }
+    header h1 { font-family: 'Playfair Display', serif; font-size: 1.9rem; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
+    header h1 a { color: inherit; text-decoration: none; }
+    header .header-right { display: flex; align-items: baseline; gap: 16px; margin-left: auto; }
+    header span { color: var(--muted); font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    header a.nav-link { color: var(--muted); font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; }
+    header a.nav-link:hover { color: var(--accent); }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 40px 36px 60px; }
+
+    h2.page-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .page-subtitle { font-size: 0.85rem; color: var(--muted); margin-bottom: 36px; letter-spacing: 0.04em; }
+
+    /* ── Top KPI row ── */
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 40px; }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 22px 20px; display: flex; flex-direction: column; gap: 6px;
+      transition: border-color 0.2s;
+    }
+    .kpi-card:hover { border-color: var(--accent); }
+    .kpi-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .kpi-value { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: var(--accent); line-height: 1; }
+    .kpi-sub { font-size: 0.78rem; color: var(--muted); }
+
+    /* ── Section titles ── */
+    .section-title { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+    /* ── Two-column grid ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 40px; }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 20px; }
+
+    /* ── Bar chart rows ── */
+    .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.83rem; }
+    .bar-row:last-child { margin-bottom: 0; }
+    .bar-label { width: 130px; flex-shrink: 0; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { flex: 1; background: rgba(255,255,255,0.05); border-radius: 3px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+    .bar-count { width: 38px; text-align: right; color: var(--muted); font-size: 0.78rem; flex-shrink: 0; }
+
+    /* source colours */
+    .fill-ejil    { background: var(--accent); }
+    .fill-just    { background: var(--accent2); }
+    .fill-lieber  { background: #c97a4c; }
+    .fill-opinio  { background: #5ce0a0; }
+    .fill-lawfare { background: #e05ca0; }
+    .fill-jurist  { background: #5cc8e0; }
+    .fill-icrc    { background: #e03232; }
+    .fill-default { background: var(--muted); }
+
+    /* tag colours */
+    .fill-Targeting  { background: #e05c5c; }
+    .fill-Cyber      { background: #4c9fe0; }
+    .fill-IHL        { background: #c9a84c; }
+    .fill-ICJ        { background: #a07ce0; }
+    .fill-Occupation { background: #5ce0a0; }
+    .fill-Detention  { background: #e08c4c; }
+    .fill-Weapon     { background: #c04ce0; }
+    .fill-General    { background: #8a8898; }
+
+    /* ── Timeline chart ── */
+    .timeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 20px; margin-bottom: 40px; }
+    .timeline-wrap { overflow-x: auto; padding-bottom: 4px; }
+    .timeline-chart { display: flex; align-items: flex-end; gap: 4px; height: 110px; min-width: 500px; }
+    .tl-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 30px; }
+    .tl-bar { width: 100%; background: rgba(201,168,76,0.5); border-radius: 3px 3px 0 0; transition: background 0.2s; cursor: default; position: relative; }
+    .tl-bar:hover { background: var(--accent); }
+    .tl-bar:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0f1117; border: 1px solid var(--border); color: var(--text); font-size: 0.72rem; padding: 4px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; z-index: 10; }
+    .tl-label { font-size: 0.62rem; color: var(--muted); text-align: center; }
+
+    /* ── Top authors table ── */
+    .authors-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    .authors-table th { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 0 0 10px 0; text-align: left; border-bottom: 1px solid var(--border); }
+    .authors-table th:last-child { text-align: right; }
+    .authors-table td { padding: 9px 0; border-bottom: 1px solid rgba(42,47,61,0.5); color: var(--text); vertical-align: middle; }
+    .authors-table td:last-child { text-align: right; color: var(--muted); font-size: 0.78rem; }
+    .authors-table tr:last-child td { border-bottom: none; }
+    .rank { color: var(--muted); font-size: 0.75rem; width: 24px; }
+
+    .loading { color: var(--muted); font-size: 0.85rem; padding: 20px 0; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 600px) {
+      header { padding: 20px; }
+      main { padding: 24px 20px 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><a href="/">SIL</a></h1>
+  <span>Search International Law</span>
+  <div class="header-right">
+    <a href="/" class="nav-link">← Search</a>
+  </div>
+</header>
+
+<main>
+  <h2 class="page-title">Database Statistics</h2>
+  <p class="page-subtitle" id="lastUpdated">Loading…</p>
+
+  <!-- KPI row -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Articles</div>
+      <div class="kpi-value" id="kpiTotal">—</div>
+      <div class="kpi-sub">across all sources</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Sources</div>
+      <div class="kpi-value" id="kpiSources">—</div>
+      <div class="kpi-sub">publications indexed</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Authors</div>
+      <div class="kpi-value" id="kpiAuthors">—</div>
+      <div class="kpi-sub">unique contributors</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Years Covered</div>
+      <div class="kpi-value" id="kpiYears">—</div>
+      <div class="kpi-sub" id="kpiYearRange"></div>
+    </div>
+  </div>
+
+  <!-- Articles by source + by topic -->
+  <div class="grid-2">
+    <div class="stat-card">
+      <div class="section-title">Articles by Source</div>
+      <div id="sourceChart"><span class="loading"><span class="spinner"></span>Loading…</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="section-title">Articles by Topic</div>
+      <div id="tagChart"><span class="loading"><span class="spinner"></span>Loading…</span></div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline-card">
+    <div class="section-title">Articles per Year</div>
+    <div class="timeline-wrap">
+      <div class="timeline-chart" id="timelineChart"><span class="loading"><span class="spinner"></span>Loading…</span></div>
+    </div>
+  </div>
+
+  <!-- Top authors -->
+  <div class="stat-card">
+    <div class="section-title">Top Authors</div>
+    <div id="authorsTable"><span class="loading"><span class="spinner"></span>Loading…</span></div>
+  </div>
+</main>
+
+<script>
+  function sourceBarClass(name) {
+    const s = (name || '').toLowerCase();
+    if (s.includes('ejil'))    return 'fill-ejil';
+    if (s.includes('just'))    return 'fill-just';
+    if (s.includes('lieber'))  return 'fill-lieber';
+    if (s.includes('opinio'))  return 'fill-opinio';
+    if (s.includes('lawfare')) return 'fill-lawfare';
+    if (s.includes('jurist'))  return 'fill-jurist';
+    if (s.includes('icrc'))    return 'fill-icrc';
+    return 'fill-default';
+  }
+
+  function tagBarClass(name) {
+    return 'fill-' + (name || 'General').replace(/[^a-zA-Z]/g, '');
+  }
+
+  function buildBarChart(container, items, classFunc) {
+    if (!items.length) { container.textContent = 'No data.'; return; }
+    const max = Math.max(...items.map(i => i.count));
+    container.innerHTML = items.map(item => `
+      <div class="bar-row">
+        <div class="bar-label" title="${item.name}">${item.name}</div>
+        <div class="bar-track">
+          <div class="bar-fill ${classFunc(item.name)}" style="width:${max ? (item.count / max * 100).toFixed(1) : 0}%"></div>
+        </div>
+        <div class="bar-count">${item.count.toLocaleString()}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadStats() {
+    // Fetch all articles via the /search endpoint (no query = all)
+    const res  = await fetch('/search?q=&sort=newest&page=1&per_page=1');
+    const data = await res.json();
+    const total = data.total;
+
+    // Fetch filters to get sources, authors, years, tags
+    const fres  = await fetch('/filters');
+    const fdata = await fres.json();
+
+    // ── KPIs ────────────────────────────────────────────────────────────────
+    document.getElementById('kpiTotal').textContent   = total.toLocaleString();
+    document.getElementById('kpiSources').textContent = fdata.sources.length;
+    document.getElementById('kpiAuthors').textContent = fdata.authors.filter(a => a && a !== 'Unknown').length.toLocaleString();
+
+    const years = fdata.years.filter(y => y > 0).sort();
+    document.getElementById('kpiYears').textContent = years.length;
+    if (years.length) {
+      document.getElementById('kpiYearRange').textContent = years[0] + ' – ' + years[years.length - 1];
+    }
+    document.getElementById('lastUpdated').textContent = 'Last refreshed: ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    // ── Source counts (fetch per source) ────────────────────────────────────
+    const sourceCounts = [];
+    for (const src of fdata.sources) {
+      const r = await fetch(`/search?q=&source=${encodeURIComponent(src)}&per_page=1`);
+      const d = await r.json();
+      sourceCounts.push({ name: src, count: d.total });
+    }
+    sourceCounts.sort((a, b) => b.count - a.count);
+    buildBarChart(document.getElementById('sourceChart'), sourceCounts, sourceBarClass);
+
+    // ── Tag counts ───────────────────────────────────────────────────────────
+    const tagItems = fdata.tags
+      .filter(t => t.available)
+      .map(t => ({ name: t.name, count: t.count }))
+      .sort((a, b) => b.count - a.count);
+    buildBarChart(document.getElementById('tagChart'), tagItems, tagBarClass);
+
+    // ── Timeline (articles per year) ─────────────────────────────────────────
+    const yearCounts = [];
+    for (const yr of years) {
+      const r = await fetch(`/search?q=&year=${yr}&per_page=1`);
+      const d = await r.json();
+      yearCounts.push({ year: yr, count: d.total });
+    }
+    const maxYr = Math.max(...yearCounts.map(y => y.count), 1);
+    const tlChart = document.getElementById('timelineChart');
+    tlChart.innerHTML = yearCounts.map(y => `
+      <div class="tl-col">
+        <div class="tl-bar" style="height:${Math.max(4, (y.count / maxYr * 100)).toFixed(1)}px" data-tip="${y.year}: ${y.count.toLocaleString()} articles"></div>
+        <div class="tl-label">${y.year}</div>
+      </div>
+    `).join('');
+
+    // ── Top authors ──────────────────────────────────────────────────────────
+    // Fetch all results (up to 500) and count authors client-side
+    const allRes  = await fetch(`/search?q=&sort=newest&per_page=20&page=1`);
+    const allData = await allRes.json();
+    const totalPages = Math.min(allData.total_pages, 25); // cap at 500 articles for author count
+
+    const authorMap = {};
+    const pagePromises = [];
+    for (let p = 1; p <= totalPages; p++) {
+      pagePromises.push(fetch(`/search?q=&sort=newest&per_page=20&page=${p}`).then(r => r.json()));
+    }
+    const pages = await Promise.all(pagePromises);
+    for (const pg of pages) {
+      for (const a of pg.results) {
+        if (a.author && a.author !== 'Unknown') {
+          authorMap[a.author] = (authorMap[a.author] || 0) + 1;
+        }
+      }
+    }
+    const topAuthors = Object.entries(authorMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+
+    const tbl = document.getElementById('authorsTable');
+    if (!topAuthors.length) { tbl.textContent = 'No author data.'; return; }
+    tbl.innerHTML = `
+      <table class="authors-table">
+        <thead><tr><th></th><th>Author</th><th>Source</th><th>Articles</th></tr></thead>
+        <tbody>
+          ${topAuthors.map((a, i) => {
+            // Find their most common source from pages data
+            const srcMap = {};
+            for (const pg of pages) {
+              for (const art of pg.results) {
+                if (art.author === a.name) srcMap[art.source] = (srcMap[art.source] || 0) + 1;
+              }
+            }
+            const topSrc = Object.entries(srcMap).sort((x,y) => y[1]-x[1])[0]?.[0] || '—';
+            return `<tr>
+              <td class="rank">${i + 1}</td>
+              <td>${a.name}</td>
+              <td style="color:var(--muted);font-size:0.78rem">${topSrc}</td>
+              <td>${a.count}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  loadStats().catch(err => {
+    console.error(err);
+    document.getElementById('lastUpdated').textContent = 'Failed to load statistics.';
+  });
+</script>
+</body>
+</html>

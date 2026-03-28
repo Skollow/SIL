@@ -11,7 +11,7 @@ from src.database import init_db, insert_article, article_exists
 from src.categories import assign_categories
 
 BASE_URL  = "https://www.lawfaremedia.org"
-MAX_PAGES = 10
+MAX_PAGES = 1
 
 CATEGORIES = [
     {
@@ -66,7 +66,19 @@ def make_session():
 
 
 def parse_date(date_text):
+    """
+    Lawfare format: "Friday, March 20, 2026, 10:00 AM"
+    נסה להסיר את יום השבוע ואת השעה לפני הפרסור.
+    """
+    import re
     date_text = date_text.strip()
+
+    # הסר יום שבוע מהתחלה: "Friday, March 20..." → "March 20..."
+    date_text = re.sub(r"^[A-Za-z]+,\s*", "", date_text)
+    # הסר שעה מהסוף: "March 20, 2026, 10:00 AM" → "March 20, 2026"
+    date_text = re.sub(r",?\s*\d{1,2}:\d{2}\s*(AM|PM)$", "", date_text, flags=re.IGNORECASE)
+    date_text = date_text.strip().rstrip(",").strip()
+
     for fmt in ["%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%Y-%m-%d"]:
         try:
             return datetime.strptime(date_text, fmt)
@@ -75,45 +87,137 @@ def parse_date(date_text):
     return None
 
 
+def clean_text(text):
+    """
+    מחליף תווים Unicode מיוחדים בתווים ASCII רגילים.
+    """
+    if not text:
+        return ""
+    replacements = {
+        "‘": "'",
+        "’": "'",
+        "“": '"',
+        "”": '"',
+        "–": "-",
+        "—": "-",
+        "…": "...",
+        " ": " ",
+    }
+    for char, replacement in replacements.items():
+        text = text.replace(char, replacement)
+    return text.strip()
+
+def clean_url(url):
+    """
+    תיקון 1: שומר על ה-URL המקורי ומונע שיבוש תווים מיוחדים.
+    urllib.parse.quote מקודד רק תווים שאינם חלק מ-URL תקני.
+    """
+    from urllib.parse import urlparse, urlunparse, quote
+    try:
+        parsed = urlparse(url)
+        # קודד רק את ה-path בלי לשנות תווים שכבר מקודדים
+        safe_path = quote(parsed.path, safe="/-_.~!$&'()*+,;=:@%")
+        return urlunparse(parsed._replace(path=safe_path))
+    except Exception:
+        return url
+
+
+def extract_authors(soup):
+    """
+    מחלץ כותבים מרובים ומחזיר LIST של שמות.
+    כל כותב יישמר בנפרד ב-DB.
+    """
+    import re
+
+    # Lawfare: כל כותב הוא <a> בתוך .post-detail__authors
+    author_links = (
+        soup.select(".post-detail__authors a") or
+        soup.select(".byline a") or
+        soup.select("a[rel='author']") or
+        soup.select(".author-name a")
+    )
+
+    if author_links:
+        names = [a.get_text(strip=True) for a in author_links if a.get_text(strip=True)]
+        if names:
+            return names  # LIST
+
+    # fallback — טקסט גולמי, פצל לפי and / |
+    author_container = (
+        soup.select_one(".post-detail__authors") or
+        soup.select_one(".byline") or
+        soup.select_one(".author-name")
+    )
+    if author_container:
+        raw = author_container.get_text(separator=" ", strip=True)
+        raw = re.sub(r"^[Bb]y\s+", "", raw)
+        # פצל לפי and, &, |
+        parts = re.split(r"\s+and\s+|\s*[&|]\s*", raw)
+        names = [p.strip() for p in parts if p.strip()]
+        if names:
+            return names
+
+    return ["Unknown"]
+
+
 def scrape_article(url):
-    res = requests.get(url, headers=HEADERS, timeout=15)  # individual articles use plain requests
+    # תיקון 1: שמור על URL תקני
+    url = clean_url(url)
+
+    res = requests.get(url, headers=HEADERS, timeout=15)
     res.raise_for_status()
+
+    # תיקון 2: וודא encoding נכון
+    res.encoding = res.apparent_encoding or "utf-8"
     soup = BeautifulSoup(res.text, "html.parser")
 
+    # כותרת — תיקון 2
     title_tag = (
         soup.select_one("h1.node__title") or
         soup.select_one("h1.page-title") or
         soup.select_one("h1")
     )
-    title = title_tag.get_text(strip=True) if title_tag else ""
+    title = clean_text(title_tag.get_text(strip=True)) if title_tag else ""
 
-    author_tag = (
+    # Extract authors using extract_authors() which returns a list
+    authors_list = extract_authors(soup)
+    # Join for storage — scrape_category will split again per author
+    author = ", ".join(authors_list)
+    # תאריך — תיקון 3: נסה יותר selectors ו-datetime attribute
+    date_text = ""
+    date_obj  = None
 
-        soup.select_one(".post-detail__authors") or
-        soup.select_one(".author-name a") or
-        soup.select_one("a[rel='author']") or
-        soup.select_one(".byline a")
-    )
-    author = author_tag.get_text(strip=True) if author_tag else "Unknown"
+    # Try specific selectors only — no broad class*=date to avoid wrong matches
+    for selector in [
+        ".post-detail__date",
+        "div.post-detail__date",
+        ".post-detail__date time",
+        "time[datetime]",
+        ".date-display-single",
+        ".field--name-post-date",
+        ".published-date",
+        "span.date",
+    ]:
+        date_tag = soup.select_one(selector)
+        if not date_tag:
+            continue
+        raw = date_tag.get("datetime", "") or date_tag.get_text(strip=True)
+        raw = raw.strip()
+        if not raw:
+            continue
+        if "T" in raw:
+            raw = raw[:10]
+        date_obj = parse_date(raw)
+        if date_obj:
+            date_text = raw
+            break
 
-    date_tag = (
-        soup.select_one(".post-detail__date") or
-        soup.select_one(".date-display-single") or
-        soup.select_one(".field--name-post-date") or
-        soup.select_one(".published-date")
-    )
-    if date_tag:
-        date_text = date_tag.get("datetime", "") or date_tag.get_text(strip=True)
-    else:
-        date_text = ""
-    # datetime attr often "2024-03-15T..." — take date part only
-    date_text = date_text[:10] if "T" in date_text else date_text
-    date_obj  = parse_date(date_text)
-    year      = date_obj.year  if date_obj else 0
-    month     = date_obj.month if date_obj else 0
-    day       = date_obj.day   if date_obj else 0
+    year  = date_obj.year  if date_obj else 0
+    month = date_obj.month if date_obj else 0
+    day   = date_obj.day   if date_obj else 0
 
     content = (
+        soup.select_one(".post-detail__content.mt-5-md-0") or
         soup.select_one(".post-detail__content") or
         soup.select_one(".node__content") or
         soup.select_one("article .content") or
@@ -122,16 +226,16 @@ def scrape_article(url):
     text = "\n".join(p.get_text(strip=True) for p in content.find_all("p")) if content else ""
 
     article = {
-        "source":     "Lawfare",
-        "title":      title,
-        "author":     author,
-        "date":       date_text,
-        "year":       year,
-        "month":      month,
-        "day":        day,
-        "link":       url,
-        "scraped_at": datetime.utcnow().isoformat(),
-        "full_text":  text,
+        "source":      "Lawfare",
+        "title":       title,
+        "author":      author,
+        "date":        date_text,
+        "year":        year,
+        "month":       month,
+        "day":         day,
+        "link":        url,
+        "scraped_at":  datetime.utcnow().isoformat(),
+        "full_text":   text,
     }
     article["tags"] = assign_categories(article)
     return article
@@ -161,7 +265,7 @@ def scrape_category(category: dict) -> int:
         soup      = BeautifulSoup(res.text, "html.parser")
         link_tags = []
         for selector in [
-            ".post__title a"
+            ".post__title a",
             "h3.post__link a",
             "h3.post__title a",
             "h3.node__title a",
@@ -200,7 +304,17 @@ def scrape_category(category: dict) -> int:
 
             print(f"  → {link}")
             try:
-                insert_article(scrape_article(link))
+                scraped = scrape_article(link)
+                # פצל כותבים לפי פסיק ושמור כל אחד בנפרד
+                import re
+                raw_author = scraped.get("author", "Unknown") or "Unknown"
+                author_parts = [a.strip() for a in re.split(r",\s*", raw_author) if a.strip()]
+                if not author_parts:
+                    author_parts = ["Unknown"]
+                for single_author in author_parts:
+                    article_copy = dict(scraped)
+                    article_copy["author"] = single_author
+                    insert_article(article_copy)
                 new_count += 1
                 new_total += 1
                 time.sleep(0.5)

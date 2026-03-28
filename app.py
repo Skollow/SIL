@@ -40,7 +40,7 @@ def run_all_scrapers():
         run_scrape_just,
         run_scrape_lieber,
         run_scrape_opinio,
-        run_scrape_lawfare,
+        run_scrape_lawfare, # (fix titles, fix wrong dates)
         run_scrape_jurist,
         run_scrape_icrc,
     ]:
@@ -52,7 +52,7 @@ def run_all_scrapers():
 
 # ── 1. INIT DATABASE & LOAD ARTICLES ────────────────────────────────────────
 init_db()
-# run_all_scrapers() ## down to prevent new scrape upon site creation ##
+run_all_scrapers() ## down to prevent new scrape upon site creation ##
 
 articles = get_all_articles()
 print(f"DEBUG: get_all_articles() returned {len(articles)} articles.")
@@ -79,6 +79,7 @@ schema = Schema(
     source=TEXT(stored=True),
     year=NUMERIC(stored=True),
     month=NUMERIC(stored=True),
+    day=NUMERIC(stored=True),
     content=TEXT(stored=True),
     link=ID(stored=True)
 )
@@ -97,6 +98,7 @@ def build_index(article_list):
             source=article.get("source", ""),
             year=article.get("year", 0),
             month=article.get("month", 0),
+            day=article.get("day", 0),
             content=article.get("full_text", ""),
             link=article.get("link", "")
         )
@@ -147,6 +149,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/stats")
+def stats():
+    return render_template("stats.html")
+
+
 @app.route("/search")
 @limiter.limit("60/minute")
 def search():
@@ -176,9 +183,9 @@ def search():
 
         # Sorting
         if sort_by == "newest":
-            sortedby = [FieldFacet("year", reverse=True), FieldFacet("month", reverse=True)]
+            sortedby = [FieldFacet("year", reverse=True), FieldFacet("month", reverse=True), FieldFacet("day", reverse=True)]
         elif sort_by == "oldest":
-            sortedby = [FieldFacet("year"), FieldFacet("month")]
+            sortedby = [FieldFacet("year"), FieldFacet("month"), FieldFacet("day")]
         else:
             sortedby = None   # default: relevance
 
@@ -209,6 +216,7 @@ def search():
                 "author":  str(escape(r["author"])),
                 "year":    r["year"],
                 "month":   r["month"],
+                "day":     article.get("day", 0),
                 "source":  str(escape(r["source"])),
                 "link":    str(escape(r["link"])),
                 "snippet": snippet,

@@ -7,7 +7,7 @@ from src.categories import assign_categories
 
 BASE_URL     = "https://www.justsecurity.org"
 CATEGORY_URL = BASE_URL + "/recent-articles/page/{}/"
-MAX_PAGES    = 10
+MAX_PAGES    = 1
 
 HEADERS = {
     "User-Agent": (
@@ -49,6 +49,7 @@ def scrape_article(url):
     date_obj  = parse_date(date_text)
     year      = date_obj.year  if date_obj else 0
     month     = date_obj.month if date_obj else 0
+    day       = date_obj.day   if date_obj else 0
 
     content = soup.select_one(".post-primary")
     text    = "\n".join(p.get_text(strip=True) for p in content.find_all("p")) if content else ""
@@ -60,6 +61,7 @@ def scrape_article(url):
         "date":       date_text,
         "year":       year,
         "month":      month,
+        "day":        day,
         "link":       url,
         "scraped_at": datetime.utcnow().isoformat(),
         "full_text":  text,

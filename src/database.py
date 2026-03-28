@@ -27,6 +27,7 @@ def init_db():
             date        TEXT,
             year        INTEGER NOT NULL DEFAULT 0,
             month       INTEGER NOT NULL DEFAULT 0,
+            day         INTEGER NOT NULL DEFAULT 0,
             link        TEXT    NOT NULL UNIQUE,
             full_text   TEXT,
             scraped_at  TEXT
@@ -43,6 +44,10 @@ def init_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_year   ON articles(year)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_author ON articles(author)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_tags   ON article_tags(tag)")
+    # Migrate existing DBs that were created before the day column was added
+    existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(articles)").fetchall()]
+    if "day" not in existing_cols:
+        conn.execute("ALTER TABLE articles ADD COLUMN day INTEGER NOT NULL DEFAULT 0")
     conn.commit()
     conn.close()
 
@@ -57,8 +62,8 @@ def insert_article(article: dict) -> int | None:
         cur = conn.execute(
             """
             INSERT OR IGNORE INTO articles
-                (source, title, author, date, year, month, link, full_text, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (source, title, author, date, year, month, day, link, full_text, scraped_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 article.get("source", ""),
@@ -67,6 +72,7 @@ def insert_article(article: dict) -> int | None:
                 article.get("date", ""),
                 article.get("year", 0),
                 article.get("month", 0),
+                article.get("day", 0),
                 article.get("link", ""),
                 article.get("full_text", ""),
                 article.get("scraped_at", ""),

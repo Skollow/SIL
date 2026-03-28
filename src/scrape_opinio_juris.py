@@ -6,7 +6,7 @@ from src.database import init_db, insert_article, article_exists
 from src.categories import assign_categories
 
 BASE_URL  = "https://opiniojuris.org"
-MAX_PAGES = 10
+MAX_PAGES = 1
 
 # שתי קטגוריות לסריקה
 CATEGORIES = [
@@ -37,9 +37,19 @@ HEADERS = {
 
 
 def parse_date(date_text):
+    import re
+    date_text = date_text.strip()
+    # Opinio Juris format: "18.03.26" → day=18, month=03, year=2026
+    m = re.match(r"^(\d{1,2})\.(\d{2})\.(\d{2})$", date_text)
+    if m:
+        day, month, year = int(m.group(1)), int(m.group(2)), 2000 + int(m.group(3))
+        try:
+            return datetime(year, month, day)
+        except ValueError:
+            pass
     for fmt in ["%B %d, %Y", "%d %B %Y", "%b %d, %Y", "%Y-%m-%d"]:
         try:
-            return datetime.strptime(date_text.strip(), fmt)
+            return datetime.strptime(date_text, fmt)
         except ValueError:
             continue
     return None
@@ -57,33 +67,34 @@ def scrape_article(url):
     )
     title = title_tag.get_text(strip=True) if title_tag else ""
 
-    author_tag = (
-        soup.select_one(".author a") or
-        soup.select_one(".post-author a") or
-        soup.select_one("a[rel='author']") or
-        soup.select_one("span.author")
-    )
-    author = author_tag.get_text(strip=True) if author_tag else "Unknown"
-
-    date_tag = (
-        soup.select_one("time.entry-date") or
-        soup.select_one("time[datetime]") or
-        soup.select_one(".post-date") or
-        soup.select_one(".entry-meta time")
-    )
-    if date_tag:
-        date_text = date_tag.get("datetime", "") or date_tag.get_text(strip=True)
-    else:
-        date_text = ""
-    date_obj = parse_date(date_text)
+    # Date — Opinio Juris uses span.time with format "18.03.26"
+    date_tag  = soup.select_one("span.time") or soup.select_one("time[datetime]")
+    date_text = date_tag.get_text(strip=True) if date_tag else ""
+    date_obj  = parse_date(date_text)
     year  = date_obj.year  if date_obj else 0
     month = date_obj.month if date_obj else 0
+    day   = date_obj.day   if date_obj else 0
 
+    # Content — inside div.pf-content
     content = (
+        soup.select_one("div.pf-content") or
         soup.select_one(".entry-content") or
-        soup.select_one(".post-content") or
-        soup.select_one("article .content")
+        soup.select_one(".post-content")
     )
+
+    # Author — first bracketed [Name is...] paragraph inside content
+    author = "Unknown"
+    if content:
+        first_em = content.select_one("p em")
+        if first_em:
+            import re
+            raw = first_em.get_text(strip=True)
+            # Extract name before "is" or "was" — e.g. "[Thomas Obel Hansen is..."
+            raw = re.sub(r"^\[", "", raw)
+            m = re.match(r"^([^,\[]+?)\s+(is|was|serves|currently)", raw, re.IGNORECASE)
+            if m:
+                author = m.group(1).strip()
+
     text = "\n".join(p.get_text(strip=True) for p in content.find_all("p")) if content else ""
 
     article = {
@@ -93,6 +104,7 @@ def scrape_article(url):
         "date":       date_text,
         "year":       year,
         "month":      month,
+        "day":        day,
         "link":       url,
         "scraped_at": datetime.utcnow().isoformat(),
         "full_text":  text,
@@ -156,7 +168,16 @@ def scrape_category(category: dict) -> int:
 
             print(f"  → {link}")
             try:
-                insert_article(scrape_article(link))
+                scraped = scrape_article(link)
+                import re
+                raw_author = scraped.get("author", "Unknown") or "Unknown"
+                author_parts = [a.strip() for a in re.split(r",\s*", raw_author) if a.strip()]
+                if not author_parts:
+                    author_parts = ["Unknown"]
+                for single_author in author_parts:
+                    article_copy = dict(scraped)
+                    article_copy["author"] = single_author
+                    insert_article(article_copy)
                 new_count += 1
                 new_total += 1
                 time.sleep(0.5)

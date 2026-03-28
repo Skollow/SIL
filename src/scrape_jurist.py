@@ -8,7 +8,7 @@ from src.categories import assign_categories
 BASE_URL     = "https://www.jurist.org"
 CATEGORY_URL = BASE_URL + "/news/page/{}/"
 PAGE_1_URL   = BASE_URL + "/news/"
-MAX_PAGES    = 10
+MAX_PAGES    = 1
 
 HEADERS = {
     "User-Agent": (

@@ -8,7 +8,7 @@ from src.categories import assign_categories
 BASE_URL     = "https://blogs.icrc.org"
 PAGE_1_URL   = BASE_URL + "/law-and-policy/posts/"
 PAGED_URL    = BASE_URL + "/law-and-policy/posts/page/{}/"
-MAX_PAGES    = 10
+MAX_PAGES    = 1
 
 HEADERS = {
     "User-Agent": (
