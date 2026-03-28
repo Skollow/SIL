@@ -3,5 +3,5 @@ __pycache__/
 *.pyc
 *.pyo
 .env
-# indexdir/
-# configs/articles.db
+indexdir/
+configs/articles.db
