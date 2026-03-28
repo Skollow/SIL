@@ -44,7 +44,7 @@ CATEGORIES = {
         "cluster munition", "landmine", "anti-personnel mine",
         "chemical weapon", "biological weapon", "nuclear weapon",
         "incendiary", "white phosphorus", "lethal autonomous",
-        "laws", "armed drone", "uav", "unmanned"
+        "armed drone", "uav", "unmanned"
     ]
 }
 
